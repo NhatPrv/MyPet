@@ -201,6 +201,7 @@ export class DragController {
     } else {
       this.pet.isGrounded = true;
       this.pet.position.y = this.pet.groundY;
+      this.pet.homeX = this.pet.position.x;
       this.pet.velocity.set(0, 0);
       this.pet.stateMachine.setState("IDLE");
     }

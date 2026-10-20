@@ -8,14 +8,15 @@ export class Butterfly {
 
   private wingPhase: number = 0;
   private flightTime: number = 0;
-  private baseSpeed: number = 130;
+  private baseSpeed: number = 120;
   private changeTargetTimer: number = 0;
   private targetPosition: Vector2D;
+  private petCenterX: number = window.innerWidth * 0.5;
 
-  // Màu sắc bướm neon rực rỡ
-  public primaryColor: string = "#38bdf8";
-  public secondaryColor: string = "#818cf8";
-  public size: number = 14;
+  // Màu sắc bướm xanh ngọc bích dạ quang (như hình mẫu đuổi bắt bướm)
+  public primaryColor: string = "#2dd4bf";
+  public secondaryColor: string = "#38bdf8";
+  public size: number = 13;
 
   constructor() {
     this.position = new Vector2D(0, 0);
@@ -23,9 +24,15 @@ export class Butterfly {
     this.targetPosition = new Vector2D(0, 0);
   }
 
-  public spawn(x?: number, y?: number): void {
-    const startX = x !== undefined ? x : Math.random() * (window.innerWidth - 200) + 100;
-    const startY = y !== undefined ? y : Math.random() * (window.innerHeight - 300) + 100;
+  public spawn(nearX?: number, y?: number): void {
+    if (nearX !== undefined) {
+      this.petCenterX = nearX;
+    }
+
+    // Xuất hiện trong phạm vi nhỏ gần Gugugaga (bán kính 180px)
+    const offsetX = (Math.random() - 0.5) * 260;
+    const startX = Math.max(80, Math.min(window.innerWidth - 80, this.petCenterX + offsetX));
+    const startY = y !== undefined ? y : window.innerHeight - 220 - Math.random() * 120;
 
     this.position.set(startX, startY);
     this.velocity.set(0, 0);
@@ -35,27 +42,30 @@ export class Butterfly {
     this.pickNewTarget();
   }
 
+  public updateHome(x: number): void {
+    this.petCenterX = x;
+  }
+
   private pickNewTarget(): void {
-    // Chọn mục tiêu bay ngẫu nhiên trong màn hình làm việc
-    const padding = 120;
-    const tx = Math.random() * (window.innerWidth - padding * 2) + padding;
-    const ty = Math.random() * (window.innerHeight - padding * 2 - 80) + padding;
+    // Bay lượn trong không gian nhỏ quanh Gugugaga
+    const rangeX = 180;
+    const tx = Math.max(60, Math.min(window.innerWidth - 60, this.petCenterX + (Math.random() - 0.5) * rangeX * 2));
+    const ty = Math.max(window.innerHeight - 380, Math.min(window.innerHeight - 110, window.innerHeight - 200 + (Math.random() - 0.5) * 160));
     this.targetPosition.set(tx, ty);
-    this.changeTargetTimer = 2.5 + Math.random() * 3;
+    this.changeTargetTimer = 2.0 + Math.random() * 2.5;
   }
 
   public update(dt: number): void {
     if (!this.isActive) return;
 
     this.flightTime += dt;
-    this.wingPhase += dt * 26; // Tốc độ đập cánh 26 rad/s (~4 Hz)
+    this.wingPhase += dt * 26;
 
     this.changeTargetTimer -= dt;
     if (this.changeTargetTimer <= 0) {
       this.pickNewTarget();
     }
 
-    // Lực hướng tâm tới mục tiêu
     const dir = this.targetPosition.clone().sub(this.position);
     const dist = dir.mag();
 
@@ -65,26 +75,28 @@ export class Butterfly {
       this.velocity.y += (dir.y - this.velocity.y) * dt * 2.5;
     }
 
-    // Thêm dao động sóng sin tự nhiên cho đường bay chao liệng
-    const sineWobbleX = Math.cos(this.flightTime * 4.2) * 45;
-    const sineWobbleY = Math.sin(this.flightTime * 5.5) * 55;
+    const sineWobbleX = Math.cos(this.flightTime * 4.2) * 40;
+    const sineWobbleY = Math.sin(this.flightTime * 5.5) * 45;
 
     this.position.x += (this.velocity.x + sineWobbleX) * dt;
     this.position.y += (this.velocity.y + sineWobbleY) * dt;
 
-    // Giữ bướm trong giới hạn màn hình
-    const maxX = window.innerWidth - 40;
-    const maxY = window.innerHeight - 100;
-    if (this.position.x < 40) {
-      this.position.x = 40;
+    const minX = Math.max(40, this.petCenterX - 220);
+    const maxX = Math.min(window.innerWidth - 40, this.petCenterX + 220);
+
+    if (this.position.x < minX) {
+      this.position.x = minX;
       this.velocity.x = Math.abs(this.velocity.x);
     } else if (this.position.x > maxX) {
       this.position.x = maxX;
       this.velocity.x = -Math.abs(this.velocity.x);
     }
 
-    if (this.position.y < 50) {
-      this.position.y = 50;
+    const minY = window.innerHeight - 400;
+    const maxY = window.innerHeight - 100;
+
+    if (this.position.y < minY) {
+      this.position.y = minY;
       this.velocity.y = Math.abs(this.velocity.y);
     } else if (this.position.y > maxY) {
       this.position.y = maxY;
@@ -98,15 +110,13 @@ export class Butterfly {
     ctx.save();
     ctx.translate(this.position.x, this.position.y);
 
-    // Tính độ vỗ cánh theo hàm cos (co giãn bề rộng cánh)
     const wingFlap = Math.cos(this.wingPhase);
     const wingWidth = this.size * Math.abs(wingFlap);
 
-    // Hướng bay
     const angle = Math.atan2(this.velocity.y, this.velocity.x) * 0.3;
     ctx.rotate(angle);
 
-    // Cánh trái
+    // Cánh trái xanh ngọc
     ctx.save();
     ctx.fillStyle = this.primaryColor;
     ctx.beginPath();
@@ -132,16 +142,10 @@ export class Butterfly {
     ctx.fill();
     ctx.restore();
 
-    // Thân bướm nhỏ thon
-    ctx.fillStyle = "#1e293b";
+    // Thân bướm
+    ctx.fillStyle = "#134e4a";
     ctx.beginPath();
-    ctx.ellipse(0, 0, 2.5, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Đốm sáng hào quang lấp lánh quanh bướm
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.beginPath();
-    ctx.arc(0, 0, 2, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 2.5, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
