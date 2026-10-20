@@ -78,13 +78,17 @@ export class NotificationBubble {
     this.currentNotif = this.queue.shift() || null;
     if (!this.currentNotif) return;
 
-    // Đánh thức và kích hoạt trạng thái thông báo của Gugugaga
+    // Đánh thức và kích hoạt hoạt cảnh GIẬT MÌNH KINH NGẠC của Gugugaga
     this.pet.wakeUp();
-    this.pet.stateMachine.setState("NOTIFY");
+    this.pet.triggerStartledAlert();
 
-    this.renderBubble(this.currentNotif);
+    // Hiển thị bong bóng thoại sau một tích tắc ngắn để làm nổi bật phản ứng giật mình
+    setTimeout(() => {
+      if (this.currentNotif) {
+        this.renderBubble(this.currentNotif);
+      }
+    }, 180);
 
-    // Thời gian hiển thị dựa trên độ dài nội dung (tối thiểu 6s, tối đa 10s)
     const textLen = (this.currentNotif.title + this.currentNotif.body).length;
     const duration = Math.min(10000, Math.max(6000, textLen * 90));
 
@@ -137,11 +141,9 @@ export class NotificationBubble {
     const petX = this.pet.position.x;
     const petY = this.pet.position.y;
 
-    // Căn giữa theo đầu Gugugaga
     let posX = petX - bubbleWidth / 2;
     let posY = petY - this.pet.height - 75;
 
-    // Kẹp biên màn hình
     const padding = 20;
     if (posX < padding) posX = padding;
     if (posX + bubbleWidth > window.innerWidth - padding) {
@@ -152,7 +154,6 @@ export class NotificationBubble {
     this.bubbleElement.style.left = `${posX}px`;
     this.bubbleElement.style.top = `${posY}px`;
 
-    // Cập nhật vị trí mũi tên trỏ vào đỉnh đầu Gugugaga
     const arrow = this.bubbleElement.querySelector(".bubble-arrow") as HTMLElement;
     if (arrow) {
       const arrowRelativeX = petX - posX;

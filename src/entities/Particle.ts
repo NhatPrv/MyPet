@@ -1,4 +1,4 @@
-export type ParticleType = "dust" | "zzz" | "sparkle" | "heart";
+export type ParticleType = "dust" | "zzz" | "sparkle" | "heart" | "exclamation" | "sweat";
 
 export interface ParticleConfig {
   x: number;
@@ -11,6 +11,7 @@ export interface ParticleConfig {
   color: string;
   type: ParticleType;
   text?: string;
+  scale?: number;
 }
 
 export class ParticleSystem {
@@ -70,6 +71,40 @@ export class ParticleSystem {
     }
   }
 
+  public emitExclamation(x: number, y: number): void {
+    // Dấu chấm than "!" giật mình nảy lên cao
+    this.particles.push({
+      x,
+      y: y - 25,
+      vx: (Math.random() - 0.5) * 10,
+      vy: -90,
+      life: 0.8,
+      maxLife: 0.8,
+      size: 26,
+      color: "#ef4444",
+      type: "exclamation",
+      text: "!",
+      scale: 1,
+    });
+  }
+
+  public emitSweat(x: number, y: number): void {
+    // Giọt mồ hôi anime 💧
+    for (let i = 0; i < 2; i++) {
+      this.particles.push({
+        x: x + (i === 0 ? -22 : 22),
+        y: y - 16,
+        vx: (i === 0 ? -25 : 25),
+        vy: -35,
+        life: 0.7,
+        maxLife: 0.7,
+        size: 9,
+        color: "#38bdf8",
+        type: "sweat",
+      });
+    }
+  }
+
   public update(dt: number): void {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -84,13 +119,16 @@ export class ParticleSystem {
 
       if (p.type === "dust") {
         p.vx *= 0.92;
-        p.vy += 60 * dt; // Trọng lực nhẹ
+        p.vy += 60 * dt;
       } else if (p.type === "zzz") {
-        // Lắc lư sóng sin
         p.x += Math.sin(p.life * 5) * 0.8;
       } else if (p.type === "sparkle") {
         p.vx *= 0.95;
         p.vy *= 0.95;
+      } else if (p.type === "exclamation") {
+        p.vy *= 0.88; // Giảm dần tốc độ bay lên
+      } else if (p.type === "sweat") {
+        p.vy += 220 * dt; // Trọng lực rơi giọt nước
       }
     }
   }
@@ -110,6 +148,27 @@ export class ParticleSystem {
         ctx.fillStyle = p.color;
         ctx.font = `bold ${Math.round(p.size)}px 'Segoe UI', cursive, sans-serif`;
         ctx.fillText(p.text, p.x, p.y);
+      } else if (p.type === "exclamation" && p.text) {
+        // Vẽ dấu chấm than có viền trắng nổi bật
+        ctx.save();
+        ctx.font = `900 ${Math.round(p.size)}px 'Segoe UI', Impact, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        ctx.strokeText(p.text, p.x, p.y);
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, p.x, p.y);
+        ctx.restore();
+      } else if (p.type === "sweat") {
+        // Vẽ giọt mồ hôi hình giọt nước
+        ctx.save();
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - p.size);
+        ctx.quadraticCurveTo(p.x + p.size * 0.7, p.y, p.x, p.y + p.size * 0.7);
+        ctx.quadraticCurveTo(p.x - p.size * 0.7, p.y, p.x, p.y - p.size);
+        ctx.fill();
+        ctx.restore();
       }
     }
     ctx.restore();

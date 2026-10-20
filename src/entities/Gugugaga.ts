@@ -1,6 +1,6 @@
 import { Vector2D } from "../engine/Vector2D.ts";
 import { StateMachine, StateType } from "../ai/StateMachine.ts";
-import { GugugagaRenderer, PetMood, RenderState } from "./GugugagaRenderer.ts";
+import { GugugagaRenderer, IdleSubAction, PetMood, RenderState } from "./GugugagaRenderer.ts";
 import { Butterfly } from "./Butterfly.ts";
 
 export class Gugugaga {
@@ -14,13 +14,25 @@ export class Gugugaga {
   public isDragged: boolean = false;
   public mood: PetMood = "happy";
 
-  // Thông số vật lý & kích thước
+  // Thông số kích thước & vật lý
   public width: number = 84;
   public height: number = 80;
   public groundY: number;
   private gravity: number = 1800; // px/s^2
 
-  // Timers cho hành vi
+  // Hành động rảnh rỗi tự động (Autonomous Idle Actions)
+  public idleSubAction: IdleSubAction = "NONE";
+  private idleSubTimer: number = 0;
+  private idleSubDuration: number = 0;
+  private nextIdleActionTimer: number = 1.8;
+  private autoButterflyTimer: number = 0;
+
+  // Hoạt cảnh giật mình khi có thông báo (Startled / Shocked Reaction)
+  public isStartled: boolean = false;
+  private startledTimer: number = 0;
+  private startledDuration: number = 0.65;
+
+  // Timers cho các hành vi khác
   private zzzEmitTimer: number = 0;
   private celebrateTimer: number = 0;
 
@@ -43,11 +55,41 @@ export class Gugugaga {
     return this.stateMachine.currentState;
   }
 
+  /**
+   * Kích hoạt phản ứng giật mình thót tim khi có thông báo mới
+   */
+  public triggerStartledAlert(): void {
+    this.isStartled = true;
+    this.startledTimer = this.startledDuration;
+    this.mood = "startled";
+    this.idleSubAction = "NONE";
+
+    // Bật nảy người lùi về phía sau và giật mình lên cao
+    this.velocity.y = -360;
+    this.velocity.x = (this.isFacingRight ? -60 : 60);
+    this.isGrounded = false;
+
+    // Phát hạt dấu chấm than "!" đỏ và giọt mồ hôi anime 💧
+    this.renderer.particles.emitExclamation(this.position.x, this.position.y - 25);
+    this.renderer.particles.emitSweat(this.position.x, this.position.y);
+  }
+
   public update(dt: number, butterfly?: Butterfly): void {
     const ctx = this.stateMachine.getContext();
     this.stateMachine.update(dt);
 
-    // Xử lý hoạt cảnh ăn mừng sau khi bắt bướm
+    // 1. Xử lý phản ứng giật mình (Startled)
+    if (this.isStartled) {
+      this.startledTimer -= dt;
+      if (this.startledTimer <= 0) {
+        this.isStartled = false;
+        this.startledTimer = 0;
+        this.stateMachine.setState("NOTIFY");
+        this.mood = "excited";
+      }
+    }
+
+    // 2. Xử lý ăn mừng sau khi bắt bướm
     if (this.celebrateTimer > 0) {
       this.celebrateTimer -= dt;
       this.mood = "excited";
@@ -57,31 +99,85 @@ export class Gugugaga {
       }
     }
 
-    // 1. Phản xạ AI theo từng trạng thái
+    // 3. Tự động thả bướm chơi khi rảnh rỗi lâu (sau 26 giây)
+    if (butterfly && !butterfly.isActive && !this.isDragged && this.stateMachine.currentState !== "SLEEP") {
+      this.autoButterflyTimer += dt;
+      if (this.autoButterflyTimer >= 26) {
+        this.autoButterflyTimer = 0;
+        butterfly.spawn();
+      }
+    } else {
+      this.autoButterflyTimer = 0;
+    }
+
+    // 4. Phản xạ AI theo trạng thái FSM
     switch (this.stateMachine.currentState) {
       case "IDLE":
-        this.velocity.set(0, 0);
-        // Kiểm tra phát hiện bướm
+        this.velocity.x = 0;
+
+        // Phát hiện bướm
         if (butterfly && butterfly.isActive && !butterfly.isCaught) {
           const dist = this.position.dist(butterfly.position);
           if (dist < 450) {
             this.stateMachine.setState("CHASE_BUTTERFLY");
             this.mood = "excited";
+            this.idleSubAction = "NONE";
             break;
           }
         }
 
-        if (ctx.stateTimer > ctx.idleDuration) {
+        // TỰ ĐỘNG THỰC HIỆN CÁC HÀNH ĐỘNG KHI IDLE
+        if (!this.isStartled) {
+          if (this.idleSubAction === "NONE") {
+            this.nextIdleActionTimer -= dt;
+            if (this.nextIdleActionTimer <= 0) {
+              const actions: IdleSubAction[] = ["LOOK_AROUND", "STRETCH", "YAWN", "BOUNCE", "SCRATCH"];
+              this.idleSubAction = actions[Math.floor(Math.random() * actions.length)];
+              this.idleSubTimer = 0;
+
+              if (this.idleSubAction === "LOOK_AROUND") {
+                this.idleSubDuration = 1.6;
+                this.mood = "curious";
+              } else if (this.idleSubAction === "STRETCH") {
+                this.idleSubDuration = 1.8;
+                this.mood = "happy";
+              } else if (this.idleSubAction === "YAWN") {
+                this.idleSubDuration = 1.6;
+                this.mood = "sleepy";
+              } else if (this.idleSubAction === "BOUNCE") {
+                this.idleSubDuration = 1.1;
+                this.mood = "excited";
+                if (this.isGrounded) {
+                  this.velocity.y = -220;
+                  this.isGrounded = false;
+                }
+              } else if (this.idleSubAction === "SCRATCH") {
+                this.idleSubDuration = 1.5;
+                this.mood = "happy";
+              }
+            }
+          } else {
+            this.idleSubTimer += dt;
+            if (this.idleSubTimer >= this.idleSubDuration) {
+              this.idleSubAction = "NONE";
+              this.mood = "happy";
+              this.nextIdleActionTimer = 1.8 + Math.random() * 2.2;
+            }
+          }
+        }
+
+        // Hết thời gian đứng idle thì đi dạo tuần tra
+        if (ctx.stateTimer > ctx.idleDuration && this.idleSubAction === "NONE") {
           this.stateMachine.setState("WALK");
         }
         break;
 
       case "WALK":
+        this.idleSubAction = "NONE";
         const walkSpeed = 100 * ctx.targetDirection;
         this.velocity.x = walkSpeed;
         this.isFacingRight = ctx.targetDirection > 0;
 
-        // Kiểm tra phát hiện bướm
         if (butterfly && butterfly.isActive && !butterfly.isCaught) {
           const dist = this.position.dist(butterfly.position);
           if (dist < 450) {
@@ -91,7 +187,6 @@ export class Gugugaga {
           }
         }
 
-        // Chạm mép màn hình thì đổi hướng
         const padding = 60;
         if (this.position.x < padding) {
           this.position.x = padding;
@@ -107,6 +202,7 @@ export class Gugugaga {
         break;
 
       case "CHASE_BUTTERFLY":
+        this.idleSubAction = "NONE";
         if (!butterfly || !butterfly.isActive || butterfly.isCaught) {
           this.stateMachine.setState("IDLE");
           this.mood = "happy";
@@ -121,22 +217,19 @@ export class Gugugaga {
         const runSpeed = 240;
         this.velocity.x = (dx > 0 ? 1 : -1) * runSpeed;
 
-        // Nếu bướm bay cao hơn tầm đứng và Gugugaga đang trên sàn -> nhảy vồ
         if (dy < -60 && this.isGrounded && Math.abs(dx) < 140) {
           this.velocity.y = -580;
           this.isGrounded = false;
         }
 
-        // Bắt được bướm thành công!
         if (bDist < 38) {
           butterfly.catch();
           this.renderer.particles.emitSparkle(this.position.x, this.position.y);
           this.celebrateTimer = 2.2;
-          this.velocity.set(0, -250); // Nhảy lên ăn mừng
+          this.velocity.set(0, -250);
           this.isGrounded = false;
         }
 
-        // Nếu săn quá 10 giây mà không bắt được thì dừng nghỉ
         if (ctx.stateTimer > 10) {
           this.stateMachine.setState("IDLE");
           this.mood = "happy";
@@ -144,6 +237,7 @@ export class Gugugaga {
         break;
 
       case "SLEEP":
+        this.idleSubAction = "NONE";
         this.velocity.set(0, 0);
         this.mood = "sleepy";
         this.zzzEmitTimer += dt;
@@ -154,18 +248,19 @@ export class Gugugaga {
         break;
 
       case "DRAGGED":
+        this.idleSubAction = "NONE";
         this.isGrounded = false;
         this.mood = "surprised";
         break;
 
       case "FALLING":
-        // Trọng lực rơi tự do
+        this.idleSubAction = "NONE";
         this.velocity.y += this.gravity * dt;
         this.mood = "surprised";
         break;
 
       case "NOTIFY":
-        // Nhảy nhẹ tại chỗ và giơ tay vẫy chào
+        this.idleSubAction = "NONE";
         if (this.isGrounded && ctx.stateTimer < 0.2) {
           this.velocity.y = -350;
           this.isGrounded = false;
@@ -174,21 +269,18 @@ export class Gugugaga {
         break;
     }
 
-    // 2. Tích hợp vật lý vị trí (Vận tốc -> Tọa độ)
+    // 5. Tính toán vật lý vị trí
     if (!this.isDragged) {
       this.position.x += this.velocity.x * dt;
       this.position.y += this.velocity.y * dt;
 
-      // Trọng lực nếu không chạm đất
       if (!this.isGrounded) {
         this.velocity.y += this.gravity * dt;
       }
 
-      // Xử lý va chạm sàn (Taskbar/Đáy màn hình)
       if (this.position.y >= this.groundY) {
         this.position.y = this.groundY;
         if (!this.isGrounded) {
-          // Nảy nhẹ nếu rơi từ trên cao xuống
           if (this.velocity.y > 300) {
             this.velocity.y = -this.velocity.y * 0.35;
             this.renderer.particles.emitDust(this.position.x, this.position.y + 36);
@@ -205,7 +297,6 @@ export class Gugugaga {
         this.isGrounded = false;
       }
 
-      // Giữ trong màn hình
       const screenPadding = 40;
       if (this.position.x < screenPadding) {
         this.position.x = screenPadding;
@@ -216,7 +307,10 @@ export class Gugugaga {
       }
     }
 
-    // 3. Cập nhật hoạt cảnh của Renderer
+    // 6. Cập nhật hoạt cảnh renderer
+    const idleSubProgress = this.idleSubDuration > 0 ? this.idleSubTimer / this.idleSubDuration : 0;
+    const startledProgress = this.startledDuration > 0 ? (this.startledDuration - this.startledTimer) / this.startledDuration : 0;
+
     const renderState: RenderState = {
       x: this.position.x,
       y: this.position.y,
@@ -227,12 +321,19 @@ export class Gugugaga {
       isGrounded: this.isGrounded,
       isDragged: this.isDragged,
       mood: this.mood,
+      idleSubAction: this.idleSubAction,
+      idleSubProgress,
+      isStartled: this.isStartled,
+      startledProgress,
     };
 
     this.renderer.update(dt, renderState);
   }
 
   public render(ctx: CanvasRenderingContext2D): void {
+    const idleSubProgress = this.idleSubDuration > 0 ? this.idleSubTimer / this.idleSubDuration : 0;
+    const startledProgress = this.startledDuration > 0 ? (this.startledDuration - this.startledTimer) / this.startledDuration : 0;
+
     const renderState: RenderState = {
       x: this.position.x,
       y: this.position.y,
@@ -243,12 +344,17 @@ export class Gugugaga {
       isGrounded: this.isGrounded,
       isDragged: this.isDragged,
       mood: this.mood,
+      idleSubAction: this.idleSubAction,
+      idleSubProgress,
+      isStartled: this.isStartled,
+      startledProgress,
     };
 
     this.renderer.render(ctx, renderState);
   }
 
   public wakeUp(): void {
+    this.isStartled = false;
     this.stateMachine.registerUserActivity();
   }
 
@@ -265,6 +371,8 @@ export class Gugugaga {
     this.position.set(window.innerWidth * 0.5, this.groundY);
     this.velocity.set(0, 0);
     this.isGrounded = true;
+    this.isStartled = false;
+    this.idleSubAction = "NONE";
     this.stateMachine.setState("IDLE");
     this.mood = "happy";
   }
