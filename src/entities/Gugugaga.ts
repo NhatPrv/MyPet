@@ -2,21 +2,23 @@ import { Vector2D } from "../engine/Vector2D.ts";
 import { StateMachine, StateType } from "../ai/StateMachine.ts";
 import { GugugagaRenderer, IdleSubAction, PetMood, RenderState } from "./GugugagaRenderer.ts";
 import { Butterfly } from "./Butterfly.ts";
+import { PoseAnimator } from "../animation/PoseAnimator.ts";
 
 export class Gugugaga {
   public position: Vector2D;
   public velocity: Vector2D;
   public stateMachine: StateMachine;
   public renderer: GugugagaRenderer;
+  public poseAnimator: PoseAnimator;
 
   public isFacingRight: boolean = true;
   public isGrounded: boolean = true;
   public isDragged: boolean = false;
   public mood: PetMood = "happy";
 
-  // Thông số kích thước & vật lý
-  public width: number = 84;
-  public height: number = 80;
+  // Kích thước & mặt sàn
+  public width: number = 92;
+  public height: number = 96;
   public groundY: number;
   private gravity: number = 1800; // px/s^2
 
@@ -27,24 +29,26 @@ export class Gugugaga {
   private nextIdleActionTimer: number = 1.8;
   private autoButterflyTimer: number = 0;
 
-  // Hoạt cảnh giật mình khi có thông báo (Startled / Shocked Reaction)
+  // Hoạt cảnh giật mình khi có thông báo (Startled Reaction)
   public isStartled: boolean = false;
   private startledTimer: number = 0;
   private startledDuration: number = 0.65;
 
-  // Timers cho các hành vi khác
+  // Timers
   private zzzEmitTimer: number = 0;
   private celebrateTimer: number = 0;
+  private lastFacingDirection: number = 1;
 
   constructor() {
-    this.groundY = window.innerHeight - 80;
+    this.groundY = window.innerHeight - 84;
     this.position = new Vector2D(window.innerWidth * 0.5, this.groundY);
     this.velocity = new Vector2D(0, 0);
     this.stateMachine = new StateMachine();
     this.renderer = new GugugagaRenderer();
+    this.poseAnimator = new PoseAnimator();
 
     window.addEventListener("resize", () => {
-      this.groundY = window.innerHeight - 80;
+      this.groundY = window.innerHeight - 84;
       if (this.position.y > this.groundY) {
         this.position.y = this.groundY;
       }
@@ -64,12 +68,10 @@ export class Gugugaga {
     this.mood = "startled";
     this.idleSubAction = "NONE";
 
-    // Bật nảy người lùi về phía sau và giật mình lên cao
     this.velocity.y = -360;
     this.velocity.x = (this.isFacingRight ? -60 : 60);
     this.isGrounded = false;
 
-    // Phát hạt dấu chấm than "!" đỏ và giọt mồ hôi anime 💧
     this.renderer.particles.emitExclamation(this.position.x, this.position.y - 25);
     this.renderer.particles.emitSweat(this.position.x, this.position.y);
   }
@@ -78,7 +80,7 @@ export class Gugugaga {
     const ctx = this.stateMachine.getContext();
     this.stateMachine.update(dt);
 
-    // 1. Xử lý phản ứng giật mình (Startled)
+    // 1. Xử lý phản ứng giật mình
     if (this.isStartled) {
       this.startledTimer -= dt;
       if (this.startledTimer <= 0) {
@@ -99,7 +101,7 @@ export class Gugugaga {
       }
     }
 
-    // 3. Tự động thả bướm chơi khi rảnh rỗi lâu (sau 26 giây)
+    // 3. Tự động gọi bướm khi rảnh rỗi lâu
     if (butterfly && !butterfly.isActive && !this.isDragged && this.stateMachine.currentState !== "SLEEP") {
       this.autoButterflyTimer += dt;
       if (this.autoButterflyTimer >= 26) {
@@ -110,12 +112,11 @@ export class Gugugaga {
       this.autoButterflyTimer = 0;
     }
 
-    // 4. Phản xạ AI theo trạng thái FSM
+    // 4. Phản xạ AI theo trạng thái
     switch (this.stateMachine.currentState) {
       case "IDLE":
         this.velocity.x = 0;
 
-        // Phát hiện bướm
         if (butterfly && butterfly.isActive && !butterfly.isCaught) {
           const dist = this.position.dist(butterfly.position);
           if (dist < 450) {
@@ -126,7 +127,6 @@ export class Gugugaga {
           }
         }
 
-        // TỰ ĐỘNG THỰC HIỆN CÁC HÀNH ĐỘNG KHI IDLE
         if (!this.isStartled) {
           if (this.idleSubAction === "NONE") {
             this.nextIdleActionTimer -= dt;
@@ -166,7 +166,6 @@ export class Gugugaga {
           }
         }
 
-        // Hết thời gian đứng idle thì đi dạo tuần tra
         if (ctx.stateTimer > ctx.idleDuration && this.idleSubAction === "NONE") {
           this.stateMachine.setState("WALK");
         }
@@ -177,6 +176,13 @@ export class Gugugaga {
         const walkSpeed = 100 * ctx.targetDirection;
         this.velocity.x = walkSpeed;
         this.isFacingRight = ctx.targetDirection > 0;
+
+        // Phát hiện đổi hướng để tạo hiệu ứng phanh bụi
+        if (ctx.targetDirection !== this.lastFacingDirection) {
+          this.lastFacingDirection = ctx.targetDirection;
+          this.poseAnimator.triggerTurn();
+          this.renderer.particles.emitDust(this.position.x, this.position.y + 38);
+        }
 
         if (butterfly && butterfly.isActive && !butterfly.isCaught) {
           const dist = this.position.dist(butterfly.position);
@@ -269,7 +275,7 @@ export class Gugugaga {
         break;
     }
 
-    // 5. Tính toán vật lý vị trí
+    // 5. Tích phân vật lý vị trí
     if (!this.isDragged) {
       this.position.x += this.velocity.x * dt;
       this.position.y += this.velocity.y * dt;
@@ -283,7 +289,7 @@ export class Gugugaga {
         if (!this.isGrounded) {
           if (this.velocity.y > 300) {
             this.velocity.y = -this.velocity.y * 0.35;
-            this.renderer.particles.emitDust(this.position.x, this.position.y + 36);
+            this.renderer.particles.emitDust(this.position.x, this.position.y + 40);
           } else {
             this.velocity.y = 0;
             this.isGrounded = true;
@@ -297,7 +303,7 @@ export class Gugugaga {
         this.isGrounded = false;
       }
 
-      const screenPadding = 40;
+      const screenPadding = 45;
       if (this.position.x < screenPadding) {
         this.position.x = screenPadding;
         this.velocity.x = 0;
@@ -307,7 +313,16 @@ export class Gugugaga {
       }
     }
 
-    // 6. Cập nhật hoạt cảnh renderer
+    // 6. Tính toán tư thế hoạt họa Disney từ PoseAnimator
+    const customPose = this.poseAnimator.update(
+      dt,
+      this.stateMachine.currentState,
+      this.isGrounded,
+      this.velocity.x,
+      this.isFacingRight,
+      this.idleSubAction
+    );
+
     const idleSubProgress = this.idleSubDuration > 0 ? this.idleSubTimer / this.idleSubDuration : 0;
     const startledProgress = this.startledDuration > 0 ? (this.startledDuration - this.startledTimer) / this.startledDuration : 0;
 
@@ -325,6 +340,8 @@ export class Gugugaga {
       idleSubProgress,
       isStartled: this.isStartled,
       startledProgress,
+      lookTarget: butterfly && butterfly.isActive ? { x: butterfly.position.x, y: butterfly.position.y } : undefined,
+      customPose,
     };
 
     this.renderer.update(dt, renderState);
