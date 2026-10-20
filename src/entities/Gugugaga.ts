@@ -18,6 +18,10 @@ export class Gugugaga {
   public isDragged: boolean = false;
   public mood: PetMood = "happy";
 
+  // Dữ liệu con lắc vật lý khi kéo thả
+  public pendulumAngle: number = 0;
+  public isDraggedFast: boolean = false;
+
   // Kích thước & mặt sàn
   public width: number = 92;
   public height: number = 96;
@@ -115,7 +119,7 @@ export class Gugugaga {
           if (dist < 450) {
             this.stateMachine.setState("CHASE_BUTTERFLY");
             this.chaseStage = "ANTICIPATION";
-            this.chaseStageTimer = 0.35; // Lắc mông lấy đà 0.35s
+            this.chaseStageTimer = 0.35;
             this.mood = "excited";
             this.idleSubAction = "NONE";
             break;
@@ -213,9 +217,7 @@ export class Gugugaga {
           }
         }
 
-        // CHUỖI RƯỢT ĐUỔI ĐIỆN ẢNH ĐA GIAI ĐOẠN
         if (this.chaseStage === "ANTICIPATION") {
-          // Giai đoạn 1: Đứng lấy đà lắc mông
           this.velocity.set(0, 0);
           this.chaseStageTimer -= dt;
           if (butterfly) {
@@ -226,7 +228,6 @@ export class Gugugaga {
             this.renderer.particles.emitDust(this.position.x, this.position.y + 38);
           }
         } else if (this.chaseStage === "SPRINT") {
-          // Giai đoạn 2: Phi nước đại bám đuổi
           if (butterfly) {
             const bDist = this.position.dist(butterfly.position);
             const dx = butterfly.position.x - this.position.x;
@@ -236,14 +237,12 @@ export class Gugugaga {
             const sprintSpeed = 260;
             this.velocity.x = (dx > 0 ? 1 : -1) * sprintSpeed;
 
-            // Nhảy vồ nếu bướm ở trên cao và trong cự ly
             if (dy < -50 && this.isGrounded && Math.abs(dx) < 130) {
               this.chaseStage = "POUNCE";
               this.velocity.y = -620;
               this.isGrounded = false;
             }
 
-            // Bắt trúng bướm
             if (bDist < 40) {
               butterfly.catch();
               this.renderer.particles.emitSparkle(this.position.x, this.position.y);
@@ -255,7 +254,6 @@ export class Gugugaga {
             }
           }
         } else if (this.chaseStage === "POUNCE") {
-          // Giai đoạn 3: Nhảy vồ trên không
           if (butterfly) {
             const bDist = this.position.dist(butterfly.position);
             if (bDist < 42) {
@@ -272,7 +270,6 @@ export class Gugugaga {
             this.chaseStage = "SPRINT";
           }
         } else if (this.chaseStage === "CELEBRATE") {
-          // Giai đoạn 4: Ăn mừng xoay vòng 360 độ
           this.velocity.x = 0;
           this.spinAngle += dt * 10;
           this.chaseStageTimer -= dt;
@@ -302,7 +299,8 @@ export class Gugugaga {
       case "DRAGGED":
         this.idleSubAction = "NONE";
         this.isGrounded = false;
-        this.mood = "surprised";
+        // Quay mặt hướng chính diện khi bị nhấc bổng
+        this.renderer.rig.facing.setTargetFacing(0, 0.1);
         break;
 
       case "FALLING":
@@ -313,6 +311,8 @@ export class Gugugaga {
 
       case "NOTIFY":
         this.idleSubAction = "NONE";
+        // Quay mặt trực diện 0 độ về phía người dùng khi có thông báo
+        this.renderer.rig.facing.setTargetFacing(0, -0.05);
         if (this.isGrounded && ctx.stateTimer < 0.2) {
           this.velocity.y = -350;
           this.isGrounded = false;
@@ -369,7 +369,9 @@ export class Gugugaga {
       this.idleSubAction,
       this.chaseStage,
       this.chaseStageTimer,
-      this.spinAngle
+      this.spinAngle,
+      this.pendulumAngle,
+      this.isDraggedFast
     );
 
     const idleSubProgress = this.idleSubDuration > 0 ? this.idleSubTimer / this.idleSubDuration : 0;

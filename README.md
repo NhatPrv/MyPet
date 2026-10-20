@@ -1,62 +1,49 @@
 # MyPet - Gugugaga Desktop Pet (Windows 11)
 
-Ứng dụng thú cưng màn hình (Desktop Pet) tương tác thời gian thực dành cho Windows 11 với nhân vật **Gugugaga** tinh nghịch, giàu năng lượng. Dự án được xây dựng trên nền tảng **Tauri v2** (Rust Backend + TypeScript + HTML5 Canvas Frontend + Vite), tối ưu hóa hiệu năng và bộ nhớ cực thấp trên hệ thống máy tính cá nhân.
+Ứng dụng thú cưng màn hình (Desktop Pet) tương tác thời gian thực dành cho Windows 11 với nhân vật **Gugugaga** – bé gái anime chibi mặc trang phục chim cánh cụt bông siêu đáng yêu. Dự án được xây dựng trên nền tảng **Tauri v2** (Rust Backend + TypeScript + HTML5 Canvas Frontend + Vite), tối ưu hóa hiệu năng và bộ nhớ cực thấp trên hệ thống máy tính cá nhân.
+
+![Gugugaga Reference](public/assets/gugugaga_ref.png)
 
 ---
 
 ## 🌟 Tính Năng Nổi Bật
 
-1. **Cửa Sổ Trong Suốt & Xuyên Chuột Động (Dynamic Click-Through Overlay):**
-   - Cửa sổ không viền (`frameless`), luôn nổi trên cùng (`always-on-top`), nền trong suốt hoàn toàn.
-   - Cơ chế phát hiện tương tác theo pixel/hitbox: Chuột click xuyên qua các vùng trống để làm việc bình thường với các ứng dụng Windows khác; tự động bắt tương tác chuột khi rê vào nhân vật Gugugaga hoặc bong bóng thông báo.
+1. **Tạo Hình Chuẩn 100% Nhân Vật GuGuGaGa:**
+   - Bé gái chibi với mái tóc ngắn búp bê (`bob haircut`), kẹp tóc bạc kép, khuôn mặt bầu bĩnh màu da đào ửng hồng.
+   - Mũ trùm đầu chim cánh cụt nhung đen than, hai mắt chim cánh cụt tròn xoe và mỏ chim cánh cụt vàng cam nổi khối.
+   - Bụng chim cánh cụt trắng muốt in thương hiệu **"GuGuGaGa"** màu hồng dâu tươi tắn, hai cánh bơi mềm mại (`flipper wings`) và đôi chân vàng múp míp.
+   - Vòng cổ choker đen với khuyên tròn kim loại bạc lấp lánh.
 
-2. **Game Loop 60 FPS & Vẽ Procedural Canvas:**
-   - Vòng lặp render chuẩn 60 FPS bằng `requestAnimationFrame` kết hợp tính toán vật lý theo delta-time (`dt`).
-   - Kết xuất nhân vật Gugugaga bằng đồ họa Canvas vector/procedural mượt mà, hỗ trợ hiệu ứng squash-and-stretch sinh động, tai/tay chân lắc lư và mắt biểu cảm mà không phụ thuộc ảnh ngoài (đồng thời hỗ trợ nạp sprite sheet tùy biến).
-   - Tích hợp bộ đếm FPS chẩn đoán (bật/tắt bằng phím `F3`).
+2. **Động Cơ Hoạt Hình 2.5D & Vật Lý Lò Xo Đàn Hồi (Spring Damper @ 60 FPS):**
+   - Vòng lặp render chuẩn 60 FPS bằng `requestAnimationFrame` kết hợp bảo toàn thể tích (Volume Preservation `scaleX * scaleY ≈ 1.0`).
+   - Phép chiếu thị sai 2.5D (Parallax): Ngũ quan, mỏ, tóc và bụng trượt theo chiều sâu hình cầu khi quay trái, quay phải, chính diện mà không giật lật hình `scale(-1, 1)`.
+   - Cử động bước đi hoạt họa kinh điển 4 pha (`Contact -> Down -> Pass -> Up`) với nhịp lắc lư cánh cụt đáng yêu.
+   - Con ngươi mắt bám theo mục tiêu thời gian thực (`Eye Tracking` theo bướm hoặc con trỏ chuột) và chớp mắt tự nhiên với xác suất chớp mắt kép.
 
-3. **Máy Trạng Thái Hữu Hạn (FSM) & AI Bướm Độc Lập:**
-   - Bộ quản lý hành vi đa trạng thái: `IDLE`, `WALK`, `SLEEP`, `CHASE_BUTTERFLY`, `DRAGGED`, `NOTIFY`.
-   - Thực thể bướm tự hành (`Butterfly`) bay lượn ngẫu nhiên theo hàm sóng sin/Perlin và đập cánh ở 60 FPS.
-   - Gugugaga tự động phát hiện bướm trong tầm nhìn, chuyển sang trạng thái rượt đuổi, phóng người vồ bướm và ăn mừng chiến thắng.
-   - Tự động đi ngủ (`SLEEP`) với hoạt ảnh hạt "Zzz" bay lơ lửng khi người dùng không hoạt động trong một khoảng thời gian.
+3. **Chuỗi Hoạt Cảnh Rượt Bắt Bướm Điện Ảnh (Cinematic Butterfly Chase):**
+   - **Pha 1 (Lấy đà & Lắc mông):** Gugugaga phát hiện bướm, mắt sáng hình ngôi sao lấp lánh, hạ thấp người nhún nảy lắc hông tinh nghịch chuẩn bị phóng.
+   - **Pha 2 (Phi nước đại):** Thân dốc về trước, cánh quạt như guồng quay, mắt bám theo độ cao của bướm.
+   - **Pha 3 (Nhảy vồ & Ăn mừng):** Nhảy vọt parabol trên không với hai cánh vươn dài chộp bướm, bướm tan thành chùm pháo hoa lấp lánh và Gugugaga thực hiện vũ điệu xoay tròn 360 độ ăn mừng!
 
-4. **Kéo Thả Vật Lý & Trọng Lực:**
-   - Kéo thả mượt mà bằng chuột trái với vận tốc quán tính và hoạt cảnh tay chân vùng vẫy khi bị nhấc lên (`DRAGGED`).
-   - Rơi tự do có gia tốc trọng lực và đáp xuống thanh Taskbar của Windows hoặc đáy màn hình khi buông tay.
+4. **Kéo Thả Vật Lý Con Lắc & Xuyên Chuột Động (Dynamic Click-Through):**
+   - Cửa sổ trong suốt toàn màn hình: Click chuột xuyên qua vùng trống để làm việc bình thường, tự động bắt tương tác khi rê vào Gugugaga hoặc bong bóng thông báo.
+   - Tích hợp bộ giải nghiệm con lắc vật lý (`PendulumSolver`): Thân hình và chân tay đung đưa theo gia tốc rê chuột của người dùng; khi lắc chuột nhanh sẽ kích hoạt biểu cảm hoa mắt chóng mặt dễ thương.
 
-5. **Bộ Lắng Nghe Thông Báo Windows 11 (Push Notification Interceptor):**
-   - Subsystem Rust khai thác WinRT API (`Windows.UI.Notifications.Management.UserNotificationListener`) để lắng nghe thông báo hệ thống và ứng dụng Windows 11.
-   - Hàng đợi bong bóng hội thoại phong cách anime gắn trên đầu Gugugaga, kèm phản ứng nhảy vẫy chào vui nhộn khi có thông báo mới.
-   - Cung cấp lệnh IPC/mock test thông báo để kiểm thử nhanh chóng ngay cả khi chưa cấp quyền hệ thống.
+5. **Bộ Lắng Nghe Thông Báo Windows 11 & Phản Ứng Giật Mình:**
+   - Lắng nghe sự kiện thông báo hệ thống qua WinRT API (`UserNotificationListener`) hoặc IPC test notification.
+   - Khi có thông báo: Gugugaga giật mình thót tim nhảy lùi ra sau, thân hình rung chấn, hai tai dựng đứng rung bần bật, bắn hạt dấu chấm than `!` đỏ và giọt mồ hôi anime 💧.
+   - Sau đó quay mặt trực diện $0^\circ$ về phía người dùng, giơ hai cánh vẫy chào và hiển thị bong bóng thoại anime.
 
-6. **Khay Hệ Thống & Menu Ngữ Cảnh (System Tray & Radial Menu):**
-   - Icon khay hệ thống Windows (`MyPet - Gugugaga`) cùng Context Menu chuột phải:
-     - Thả bướm bay lượn (Spawn Butterfly 🦋)
-     - Gửi thông báo kiểm thử (Send Test Notification 🔔)
-     - Bắt buộc ngủ / Đánh thức (Sleep / Wake Up 💤)
-     - Bật/tắt bộ đo FPS (Toggle FPS Counter 📊)
-     - Đặt lại vị trí ban đầu (Reset Position 📍)
-     - Thoát ứng dụng (Quit MyPet ❌)
+6. **Khay Hệ Thống & Menu Ngữ Cảnh Chuột Phải:**
+   - Bấm chuột phải trực tiếp vào Gugugaga hoặc icon khay hệ thống để mở menu tùy chọn nhanh (Thả bướm, thử thông báo, cho ngủ, bật/tắt đo FPS,...).
 
 ---
 
 ## 🛠 Yêu Cầu Môi Trường & Cài Đặt
 
-### Điều kiện tiên quyết:
-- **Hệ điều hành:** Windows 10/11 64-bit (khuyên dùng Windows 11 để hỗ trợ đầy đủ `UserNotificationListener`).
-- **Node.js:** Phiên bản `>= 18.0.0` (khuyên dùng v20+ hoặc v24 LTS).
-- **Rust & Cargo:** Phiên bản ổn định mới nhất (`rustup default stable-x86_64-pc-windows-msvc`).
-- **WebView2:** Microsoft Edge WebView2 Runtime (đã tích hợp sẵn trên Windows 11).
-- **C++ Build Tools:** Visual Studio C++ Build Tools với Windows 10/11 SDK.
-
 ### Cài đặt dependencies:
 ```bash
-# Cài đặt frontend dependencies
 npm install
-
-# Kiểm tra công cụ Rust backend
-cargo --version
 ```
 
 ### Chạy ứng dụng chế độ phát triển (Development):
@@ -69,68 +56,24 @@ npm run tauri dev
 npm run tauri build
 ```
 
-File thực thi `.exe` và bộ cài installer sẽ được xuất tại thư mục:
-`src-tauri/target/release/` hoặc `src-tauri/target/release/bundle/msi/`.
-
----
-
-## 📂 Cấu Trúc Dự Án
-
-```
-MyPet/
-├── docs/                           # Tài liệu kỹ thuật chuyên sâu
-│   ├── ARCHITECTURE.md             # Kiến trúc hệ thống Tauri v2, Rust & Canvas
-│   ├── STATE_MACHINE.md            # Thiết kế FSM & sơ đồ trạng thái Gugugaga
-│   └── NOTIFICATION_PROTOCOL.md    # Giao thức lắng nghe & hiển thị thông báo
-├── src-tauri/                      # Mã nguồn Rust Backend (Tauri v2)
-│   ├── src/
-│   │   ├── main.rs                 # Điểm khởi chạy ứng dụng
-│   │   ├── lib.rs                  # Đăng ký plugin, lệnh IPC và cấu hình runtime
-│   │   ├── notifications.rs        # Lắng nghe WinRT UserNotificationListener & Mock IPC
-│   │   ├── window_ext.rs           # Quản lý click-through (WS_EX_TRANSPARENT, hit-test)
-│   │   └── tray.rs                 # Quản lý System Tray & tương tác khay hệ thống
-│   ├── Cargo.toml                  # Khai báo crate phụ thuộc (windows, tauri, serde, tokio)
-│   └── tauri.conf.json             # Cấu hình cửa sổ trong suốt, quyền bảo mật
-├── src/                            # Mã nguồn Frontend (TypeScript + Vite + Canvas)
-│   ├── ai/
-│   │   └── StateMachine.ts         # Quản lý chuyển đổi trạng thái FSM của Gugugaga
-│   ├── engine/
-│   │   ├── GameLoop.ts             # Vòng lặp render 60 FPS cố định với delta-time
-│   │   ├── Vector2D.ts             # Thư viện toán học vector 2D, nội suy
-│   │   └── FpsCounter.ts           # Đo đạc và hiển thị FPS/MS chẩn đoán
-│   ├── entities/
-│   │   ├── GugugagaRenderer.ts     # Vẽ vector procedural cho Gugugaga, squash & stretch
-│   │   └── Butterfly.ts            # Thực thể bướm tự hành, thuật toán bay sóng sin
-│   ├── input/
-│   │   ├── DragController.ts       # Xử lý kéo thả, vận tốc quán tính và trọng lực
-│   │   └── HitboxManager.ts        # Tính toán va chạm pixel & gửi tín hiệu click-through
-│   ├── ui/
-│   │   ├── NotificationBubble.ts   # Hàng đợi bong bóng hội thoại anime mượt mà
-│   │   └── ContextMenu.ts          # Menu ngữ cảnh chuột phải trực tiếp trên nhân vật
-│   ├── index.html                  # Khung DOM trong suốt chứa Canvas & UI overlay
-│   ├── main.ts                     # Khởi tạo frontend engine & kết nối Rust IPC
-│   └── style.css                   # Định kiểu trong suốt, font chữ và hiệu ứng hoạt họa
-├── package.json                    # Cấu hình package npm và script
-├── tsconfig.json                   # Cấu hình TypeScript nghiêm ngặt
-└── README.md                       # Tài liệu tổng quan dự án
-```
-
 ---
 
 ## 🎮 Hướng Dẫn Điều Khiển & Phím Tắt
 
 | Thao tác | Mô tả |
 | :--- | :--- |
-| **Rê chuột vào Gugugaga** | Tự động bắt tương tác (tắt click-through để có thể tương tác). |
-| **Kéo thả chuột trái (Drag)** | Nhấc Gugugaga lên vị trí bất kỳ; khi thả sẽ rơi tự do xuống taskbar. |
-| **Nhấp đúp chuột trái** | Tương tác nựng Gugugaga, chuyển nhanh sang hành vi phấn khích. |
-| **Chuột phải vào Gugugaga** | Mở Menu ngữ cảnh tùy chọn (Thả bướm, thử thông báo, cho ngủ,...). |
-| **Phím `F3`** | Bật / tắt bộ đo tốc độ khung hình (FPS & Delta-time). |
-| **Icon Khay Hệ Thống** | Bấm chuột phải vào icon ở thanh taskbar để mở menu điều khiển nhanh. |
+| **Rê chuột vào Gugugaga** | Tự động bắt tương tác chuột. |
+| **Kéo thả chuột trái (Drag)** | Nhấc bổng Gugugaga đung đưa theo quán tính con lắc; buông tay để rơi tự do. |
+| **Nhấp đúp chuột trái** | Cưng nựng Gugugaga nhảy lên vui sướng kèm chùm sao lấp lánh. |
+| **Chuột phải vào Gugugaga** | Mở Menu ngữ cảnh tùy chọn phong cách Dark Glassmorphism. |
+| **Phím `F3`** | Bật / tắt bộ đo FPS và Frame-Time. |
+| **Phím `B`** | Thả bướm bay lượn để Gugugaga rượt bắt. |
+| **Phím `N`** | Bắn thông báo thử nghiệm để xem hoạt ảnh giật mình và bong bóng thoại. |
+| **Phím `S`** | Cho Gugugaga ngủ hoặc đánh thức. |
+| **Phím `R`** | Đặt lại vị trí Gugugaga về giữa màn hình. |
 
 ---
 
-## 📜 Giấy Phép & Tác Quyền
+## 📜 Giấy Phép
 
-Dự án phát triển bởi **NhatPrv** dành cho cộng đồng mã nguồn mở.
-Được cấp phép theo [MIT License](LICENSE).
+Dự án phát triển bởi **NhatPrv** - Giấy phép [MIT License](LICENSE).

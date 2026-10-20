@@ -4,6 +4,7 @@ export class PoseAnimator {
   private walkTime: number = 0;
   private sprintTime: number = 0;
   private idleTime: number = 0;
+  private notifyTime: number = 0;
   private turnTime: number = 0;
   private isTurning: boolean = false;
   private turnDuration: number = 0.2;
@@ -17,7 +18,9 @@ export class PoseAnimator {
     idleSubAction?: string,
     chaseStage?: string,
     chaseTimer: number = 0,
-    spinAngle: number = 0
+    spinAngle: number = 0,
+    pendulumAngle: number = 0,
+    isDraggedFast: boolean = false
   ): RigPose {
     this.idleTime += dt;
 
@@ -28,7 +31,20 @@ export class PoseAnimator {
       }
     }
 
-    // 1. Trạng thái rượt bắt bướm điện ảnh (Cinematic Butterfly Chase)
+    // 1. Trạng thái bị kéo thả (DRAGGED) với con lắc vật lý
+    if (stateName === "DRAGGED") {
+      return this.computeDraggedPose(this.idleTime, pendulumAngle, isDraggedFast);
+    }
+
+    // 2. Trạng thái thông báo mới (NOTIFY)
+    if (stateName === "NOTIFY") {
+      this.notifyTime += dt;
+      return this.computeNotifyPose(this.notifyTime);
+    } else {
+      this.notifyTime = 0;
+    }
+
+    // 3. Trạng thái rượt bắt bướm điện ảnh
     if (stateName === "CHASE_BUTTERFLY") {
       if (chaseStage === "ANTICIPATION") {
         return this.computeAnticipationWigglePose(chaseTimer);
@@ -42,19 +58,19 @@ export class PoseAnimator {
       }
     }
 
-    // 2. Trạng thái đi dạo tuần tra
+    // 4. Trạng thái đi dạo tuần tra
     if (stateName === "WALK" && isGrounded) {
       const cadence = Math.abs(walkSpeed) * 0.085;
       this.walkTime += dt * Math.max(6, cadence);
       return this.computeCartoonWalkPose(this.walkTime, isFacingRight);
     }
 
-    // 3. Trạng thái ngủ
+    // 5. Trạng thái ngủ
     if (stateName === "SLEEP") {
       return this.computeSleepPose(this.idleTime);
     }
 
-    // 4. Mặc định trạng thái rảnh rỗi (Idle)
+    // 6. Mặc định trạng thái rảnh rỗi (Idle)
     this.walkTime = 0;
     this.sprintTime = 0;
     return this.computeCartoonIdlePose(this.idleTime, idleSubAction);
@@ -66,12 +82,57 @@ export class PoseAnimator {
   }
 
   /**
-   * Tư thế lắc mông lấy đà chuẩn bị phóng (Anticipation Wiggle)
+   * Tư thế bị nhấc bổng kéo thả (Dragged Pendulum Physics)
    */
-  private computeAnticipationWigglePose(timer: number): RigPose {
-    const wiggle = Math.sin(timer * 28) * 0.14; // Lắc hông tần số nhanh
+  private computeDraggedPose(time: number, pendulumAngle: number, isFast: boolean): RigPose {
+    const limbFlailSpeed = isFast ? 24 : 12;
+    const limbFlail = Math.sin(time * limbFlailSpeed);
+
     return {
-      bodyOffsetY: 6, // Hạ thấp người
+      bodyOffsetY: 4,
+      bodyRotation: pendulumAngle, // Thân nghiêng theo góc lắc của con lắc
+      headOffsetY: -2,
+      headRotation: -pendulumAngle * 0.6,
+      leftArmAngle: -1.4 + limbFlail * (isFast ? 0.7 : 0.3), // Hai cánh vung vẫy bám víu
+      rightArmAngle: 1.4 - limbFlail * (isFast ? 0.7 : 0.3),
+      leftLegAngle: pendulumAngle * 0.5 + limbFlail * 0.2, // Chân buông thõng theo góc lắc
+      rightLegAngle: pendulumAngle * 0.5 - limbFlail * 0.2,
+      leftLegOffsetY: 6,
+      rightLegOffsetY: 6,
+      scaleX: 0.88,
+      scaleY: 1.15,
+    };
+  }
+
+  /**
+   * Tư thế thông báo mới: Giơ hai cánh vẫy chào mừng hướng mặt về người dùng (Notify Wave)
+   */
+  private computeNotifyPose(time: number): RigPose {
+    const hop = -Math.abs(Math.sin(time * 7)) * 8;
+    const waveSpeed = time * 16;
+    const waveLeft = Math.sin(waveSpeed) * 0.5;
+    const waveRight = Math.cos(waveSpeed) * 0.5;
+
+    return {
+      bodyOffsetY: hop,
+      bodyRotation: 0,
+      headOffsetY: hop * 0.5,
+      headRotation: Math.sin(time * 8) * 0.08,
+      leftArmAngle: -2.1 + waveLeft, // Hai cánh vẫy chào rộn ràng
+      rightArmAngle: 2.1 - waveRight,
+      leftLegAngle: -0.15,
+      rightLegAngle: 0.15,
+      leftLegOffsetY: hop < -3 ? -6 : 0,
+      rightLegOffsetY: hop < -3 ? -6 : 0,
+      scaleX: 1.05,
+      scaleY: 0.98,
+    };
+  }
+
+  private computeAnticipationWigglePose(timer: number): RigPose {
+    const wiggle = Math.sin(timer * 28) * 0.14;
+    return {
+      bodyOffsetY: 6,
       bodyRotation: wiggle,
       headOffsetY: 3,
       headRotation: -wiggle * 0.5,
@@ -81,17 +142,14 @@ export class PoseAnimator {
       rightLegAngle: 0.2,
       leftLegOffsetY: 2,
       rightLegOffsetY: 2,
-      scaleX: 1.18, // Nén thấp bè rộng
+      scaleX: 1.18,
       scaleY: 0.84,
     };
   }
 
-  /**
-   * Tư thế phi nước đại rượt đuổi bướm (Sprint Cycle)
-   */
   private computeChaseSprintPose(time: number, isFacingRight: boolean): RigPose {
     const verticalBob = -Math.abs(Math.sin(time)) * 8;
-    const forwardLean = (isFacingRight ? 1 : -1) * 0.28; // Lao dốc về trước
+    const forwardLean = (isFacingRight ? 1 : -1) * 0.28;
     const bodyWaddle = Math.sin(time) * 0.12;
 
     const leftFootPhase = Math.sin(time);
@@ -100,7 +158,6 @@ export class PoseAnimator {
     const leftLegOffsetY = leftFootPhase > 0 ? -leftFootPhase * 12 : 0;
     const rightLegOffsetY = rightFootPhase > 0 ? -rightFootPhase * 12 : 0;
 
-    // Cánh vung mạnh như guồng quay
     const leftArmAngle = -leftFootPhase * 1.3;
     const rightArmAngle = -rightFootPhase * 1.3;
 
@@ -120,9 +177,6 @@ export class PoseAnimator {
     };
   }
 
-  /**
-   * Tư thế nhảy vồ trên không (Parabolic Pounce Pose)
-   */
   private computePouncePose(isFacingRight: boolean): RigPose {
     const jumpLean = (isFacingRight ? 1 : -1) * 0.35;
     return {
@@ -130,20 +184,17 @@ export class PoseAnimator {
       bodyRotation: jumpLean,
       headOffsetY: -8,
       headRotation: jumpLean * 0.5,
-      leftArmAngle: -2.2, // Hai cánh vươn hết cỡ ra trước để chộp
+      leftArmAngle: -2.2,
       rightArmAngle: 2.2,
-      leftLegAngle: 0.5, // Chân co lại phía sau
+      leftLegAngle: 0.5,
       rightLegAngle: 0.5,
       leftLegOffsetY: -6,
       rightLegOffsetY: -6,
-      scaleX: 0.82, // Thân dài người rướn
+      scaleX: 0.82,
       scaleY: 1.25,
     };
   }
 
-  /**
-   * Tư thế ăn mừng xoay vòng 360 độ (Celebrate Spin)
-   */
   private computeCelebrateSpinPose(timer: number, spinAngle: number): RigPose {
     const hop = -Math.abs(Math.sin(timer * 8)) * 12;
     return {
@@ -151,7 +202,7 @@ export class PoseAnimator {
       bodyRotation: spinAngle,
       headOffsetY: hop * 0.5,
       headRotation: 0,
-      leftArmAngle: -2.4, // Hai cánh giơ cao chữ V chiến thắng
+      leftArmAngle: -2.4,
       rightArmAngle: 2.4,
       leftLegAngle: -0.2,
       rightLegAngle: 0.2,
@@ -162,18 +213,14 @@ export class PoseAnimator {
     };
   }
 
-  /**
-   * Tư thế ngủ cuộn tròn (Sleep Pose)
-   */
   private computeSleepPose(time: number): RigPose {
-    // Nhịp thở ngủ chậm sâu 0.4 Hz
     const sleepBreathe = Math.sin(time * 2.5);
     return {
       bodyOffsetY: 8 + sleepBreathe * 1.5,
       bodyRotation: 0.05,
       headOffsetY: 6 + sleepBreathe * 1.2,
-      headRotation: 0.12, // Đầu hơi nghiêng tựa má
-      leftArmAngle: 0.1,  // Hai cánh ôm trước bụng
+      headRotation: 0.12,
+      leftArmAngle: 0.1,
       rightArmAngle: -0.1,
       leftLegAngle: 0.3,
       rightLegAngle: 0.3,
