@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { Gugugaga } from "../entities/Gugugaga.ts";
 import { HitboxManager } from "./HitboxManager.ts";
 import { PendulumSolver } from "../engine/SpringPhysics.ts";
@@ -5,10 +6,12 @@ import { PendulumSolver } from "../engine/SpringPhysics.ts";
 export class DragController {
   private pet: Gugugaga;
   private hitboxManager: HitboxManager;
+  private canvas: HTMLCanvasElement;
 
   public isDragging: boolean = false;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
+  private activePointerId: number | null = null;
 
   // Bộ giải nghiệm con lắc vật lý
   public pendulum: PendulumSolver;
@@ -25,6 +28,7 @@ export class DragController {
   constructor(pet: Gugugaga, hitboxManager: HitboxManager) {
     this.pet = pet;
     this.hitboxManager = hitboxManager;
+    this.canvas = document.getElementById("pet-canvas") as HTMLCanvasElement;
     this.pendulum = new PendulumSolver(75, 1400, 3.8);
 
     this.registerHitbox();
@@ -42,9 +46,9 @@ export class DragController {
     });
   }
 
-  private isOverPet(clientX: number, clientY: number): boolean {
-    const halfW = this.pet.width / 2 + 12;
-    const halfH = this.pet.height / 2 + 12;
+  public isOverPet(clientX: number, clientY: number): boolean {
+    const halfW = this.pet.width / 2 + 16;
+    const halfH = this.pet.height / 2 + 16;
     const dx = Math.abs(clientX - this.pet.position.x);
     const dy = Math.abs(clientY - this.pet.position.y);
     return dx <= halfW && dy <= halfH;
@@ -52,9 +56,17 @@ export class DragController {
 
   private setupEventListeners(): void {
     window.addEventListener("pointerdown", (e: PointerEvent) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0) return; // Chỉ nhận chuột trái
 
       if (this.isOverPet(e.clientX, e.clientY)) {
+        this.activePointerId = e.pointerId;
+        if (this.canvas && this.canvas.setPointerCapture) {
+          try {
+            this.canvas.setPointerCapture(e.pointerId);
+          } catch {
+            // bỏ qua nếu không hỗ trợ
+          }
+        }
         this.startDrag(e.clientX, e.clientY);
       }
     });
@@ -63,18 +75,33 @@ export class DragController {
       if (this.isDragging) {
         this.updateDrag(e.clientX, e.clientY);
       } else {
+        // Cập nhật con trỏ chuột thành hình bàn tay nắm khi rê vào pet
         if (this.isOverPet(e.clientX, e.clientY)) {
-          this.hitboxManager.setIgnoreCursor(false);
+          document.body.style.cursor = "grab";
+        } else {
+          document.body.style.cursor = "default";
         }
       }
     });
 
-    window.addEventListener("pointerup", (e: PointerEvent) => {
-      if (this.isDragging && e.button === 0) {
+    const handlePointerUp = (e: PointerEvent) => {
+      if (this.isDragging && (this.activePointerId === null || e.pointerId === this.activePointerId)) {
+        if (this.canvas && this.canvas.releasePointerCapture && this.activePointerId !== null) {
+          try {
+            this.canvas.releasePointerCapture(this.activePointerId);
+          } catch {
+            // bỏ qua
+          }
+        }
+        this.activePointerId = null;
         this.endDrag();
       }
-    });
+    };
 
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    // Nhấp đúp chuột để nựng Gugugaga
     window.addEventListener("dblclick", (e: MouseEvent) => {
       if (this.isOverPet(e.clientX, e.clientY)) {
         this.pet.wakeUp();
@@ -91,6 +118,7 @@ export class DragController {
     this.pet.wakeUp();
     this.pet.isDragged = true;
     this.pet.stateMachine.setState("DRAGGED");
+    document.body.style.cursor = "grabbing";
 
     this.dragOffsetX = this.pet.position.x - clientX;
     this.dragOffsetY = this.pet.position.y - clientY;
@@ -105,7 +133,12 @@ export class DragController {
     this.pet.pendulumAngle = 0;
     this.pet.isDraggedFast = false;
 
-    this.hitboxManager.setIgnoreCursor(false);
+    // Báo cho Rust Native Tracker khóa giữ tương tác không cho xuyên chuột trong khi kéo
+    try {
+      invoke("set_drag_state", { isDragging: true }).catch(() => {});
+    } catch {
+      // bỏ qua
+    }
   }
 
   private updateDrag(clientX: number, clientY: number): void {
@@ -138,6 +171,9 @@ export class DragController {
 
     this.pet.position.x = clientX + this.dragOffsetX;
     this.pet.position.y = clientY + this.dragOffsetY;
+
+    // Cập nhật hitbox ngay lập tức khi kéo để backend theo kịp
+    this.hitboxManager.syncHitboxes();
   }
 
   private endDrag(): void {
@@ -146,6 +182,14 @@ export class DragController {
     this.isDraggedFast = false;
     this.pet.pendulumAngle = 0;
     this.pet.isDraggedFast = false;
+    document.body.style.cursor = "default";
+
+    // Báo cho Rust kết thúc kéo thả
+    try {
+      invoke("set_drag_state", { isDragging: false }).catch(() => {});
+    } catch {
+      // bỏ qua
+    }
 
     const maxSpeed = 1200;
     this.pet.velocity.x = Math.max(-maxSpeed, Math.min(maxSpeed, this.releaseVx));
@@ -160,5 +204,7 @@ export class DragController {
       this.pet.velocity.set(0, 0);
       this.pet.stateMachine.setState("IDLE");
     }
+
+    this.hitboxManager.syncHitboxes();
   }
 }

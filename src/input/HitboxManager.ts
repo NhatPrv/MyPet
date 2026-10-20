@@ -8,18 +8,17 @@ export interface HitboxRect {
 }
 
 export class HitboxManager {
-  private isIgnoring: boolean = false;
   private hitboxes: (() => HitboxRect | null)[] = [];
-  private padding: number = 14; // Vùng đệm 14px để di chuột mượt mà
+  private padding: number = 18;
+  private syncTimer: number | null = null;
 
   constructor() {
-    this.setupMouseTracking();
-    // Khởi tạo mặc định: Nếu chưa di chuột vào pet, kích hoạt click-through
-    this.setIgnoreCursor(true);
+    this.startBackendSync();
   }
 
   public registerHitbox(getter: () => HitboxRect | null): void {
     this.hitboxes.push(getter);
+    this.syncHitboxes();
   }
 
   public isPointInsideHitbox(px: number, py: number): boolean {
@@ -40,41 +39,39 @@ export class HitboxManager {
   }
 
   public setIgnoreCursor(ignore: boolean): void {
-    if (this.isIgnoring === ignore) return;
-    this.isIgnoring = ignore;
-
     try {
-      invoke("set_ignore_cursor_events", { ignore }).catch((err) => {
-        // Chạy trong trình duyệt thông thường khi dev thì invoke có thể không có backend
-        console.debug("Tauri set_ignore_cursor_events:", err);
-      });
+      invoke("set_ignore_cursor_events", { ignore }).catch(() => {});
     } catch {
-      // Fallback môi trường web dev
+      // web dev
     }
   }
 
-  private setupMouseTracking(): void {
-    // Theo dõi chuột khi đang nhận sự kiện
-    window.addEventListener("pointermove", (e: PointerEvent) => {
-      const inside = this.isPointInsideHitbox(e.clientX, e.clientY);
-      if (!inside) {
-        this.setIgnoreCursor(true);
+  public syncHitboxes(): void {
+    const list: HitboxRect[] = [];
+    for (const getter of this.hitboxes) {
+      const r = getter();
+      if (r) {
+        list.push(r);
       }
-    });
+    }
 
-    // Khi con trỏ chuột rời khỏi cửa sổ
-    window.addEventListener("pointerleave", () => {
-      this.setIgnoreCursor(true);
-    });
+    try {
+      invoke("update_hitboxes", { hitboxes: list }).catch(() => {});
+    } catch {
+      // Chạy môi trường web dev
+    }
+  }
 
-    // Sự kiện di chuột trên vùng nhận tương tác
-    window.addEventListener("mousemove", (e: MouseEvent) => {
-      const inside = this.isPointInsideHitbox(e.clientX, e.clientY);
-      if (inside) {
-        this.setIgnoreCursor(false);
-      } else {
-        this.setIgnoreCursor(true);
-      }
-    });
+  private startBackendSync(): void {
+    // Đồng bộ tọa độ hitbox sang Rust Native Tracker định kỳ 40ms (~25Hz)
+    this.syncTimer = window.setInterval(() => {
+      this.syncHitboxes();
+    }, 40);
+  }
+
+  public destroy(): void {
+    if (this.syncTimer !== null) {
+      clearInterval(this.syncTimer);
+    }
   }
 }
