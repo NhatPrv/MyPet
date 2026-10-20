@@ -1,6 +1,12 @@
+/**
+ * GugugagaRenderer.ts — v3.0
+ * Renderer sử dụng SpriteAnimator cho animation frame-by-frame thực sự.
+ * Hỗ trợ: squash-stretch, crossfade, shadow, pendulum, particles.
+ */
 import { ParticleSystem } from "./Particle.ts";
 import { GugugagaRig, RigPose } from "./GugugagaRig.ts";
-import { SpriteLoader, SpriteKey } from "./SpriteLoader.ts";
+import { SpriteAnimator } from "../animation/SpriteAnimator.ts";
+import { FrameMeta } from "../animation/GugugagaAnimDefs.ts";
 
 export type PetMood = "happy" | "sleepy" | "curious" | "excited" | "surprised" | "startled";
 export type IdleSubAction = "NONE" | "LOOK_AROUND" | "STRETCH" | "YAWN" | "BOUNCE" | "SCRATCH";
@@ -32,55 +38,146 @@ export class GugugagaRenderer {
 
   public rig: GugugagaRig;
   public particles: ParticleSystem;
-  private spriteLoader: SpriteLoader;
+  public animator: SpriteAnimator;
 
   private breathePhase: number = 0;
-  private walkCycle: number = 0;
+  private dustTimer: number = 0;
 
   constructor() {
     this.rig = new GugugagaRig();
     this.particles = new ParticleSystem();
-    this.spriteLoader = SpriteLoader.getInstance();
+    this.animator = new SpriteAnimator();
+
+    // Bắt đầu với idle
+    this.animator.play("idle");
   }
+
+  // ── UPDATE ────────────────────────────────────────────────
 
   public update(dt: number, state: RenderState): void {
     this.breathePhase += dt * 3.5;
     this.particles.update(dt);
     this.rig.update(dt);
 
-    if (state.stateName === "WALK" && state.isGrounded) {
-      this.walkCycle += dt * 9.5; // Tần số chu kỳ 4 frame bước đi
-      if (Math.sin(this.walkCycle * Math.PI) > 0.85) {
-        this.particles.emitDust(state.x + (state.isFacingRight ? -22 : 22), state.y + 44);
+    // Chọn animation clip phù hợp với state
+    this.selectAnimation(state);
+
+    this.animator.update(dt);
+    if ((state.stateName === "WALK" || state.stateName === "CHASE_BUTTERFLY") && state.isGrounded) {
+      this.dustTimer += dt;
+      if (this.dustTimer > 0.18) {
+        this.dustTimer = 0;
+        this.particles.emitDust(
+          state.x + (state.isFacingRight ? -22 : 22),
+          state.y + 44
+        );
       }
     } else {
-      this.walkCycle = 0;
+      this.dustTimer = 0;
     }
+
+
+
   }
 
+  /** Ánh xạ game-state sang animation clip name */
+  private selectAnimation(state: RenderState): void {
+    const s = state.stateName;
+
+    // Giật mình — ưu tiên cao nhất
+    if (state.isStartled) {
+      this.animator.play("startled", 0.05);
+      return;
+    }
+
+    // Bị kéo
+    if (state.isDragged) {
+      this.animator.play(state.isDraggedFast ? "dragged_fast" : "dragged", 0.08);
+      return;
+    }
+
+    // Ngủ
+    if (s === "SLEEP") {
+      this.animator.play("sleep", 0.15);
+      return;
+    }
+
+    // Nhận thông báo
+    if (s === "NOTIFY") {
+      this.animator.play("notify", 0.1);
+      return;
+    }
+
+    // Rượt bắt bướm
+    if (s === "CHASE_BUTTERFLY") {
+      const stage = state.chaseStage ?? "";
+      if (stage === "ANTICIPATION") {
+        this.animator.play("chase_crouch", 0.08);
+      } else if (stage === "SPRINT") {
+        this.animator.play("chase_run", 0.06);
+      } else if (stage === "POUNCE") {
+        this.animator.play("chase_jump", 0.05, true);
+      } else if (stage === "CELEBRATE") {
+        this.animator.play("chase_celebrate", 0.1);
+      }
+      return;
+    }
+
+    // Đi bộ tuần tra
+    if (s === "WALK") {
+      this.animator.play("walk", 0.08);
+      return;
+    }
+
+    // Idle với sub-action
+    if (s === "IDLE") {
+      const sub = state.idleSubAction ?? "NONE";
+      if (sub === "LOOK_AROUND" || sub === "BOUNCE" || sub === "SCRATCH") {
+        this.animator.play("idle_wave", 0.12);
+      } else {
+        this.animator.play("idle", 0.12);
+      }
+      return;
+    }
+
+    // Default
+    this.animator.play("idle", 0.12);
+  }
+
+  // ── RENDER ────────────────────────────────────────────────
+
   public render(ctx: CanvasRenderingContext2D, state: RenderState): void {
-    // 1. Vẽ các hạt bay
+    // 1. Vẽ particles
     this.particles.render(ctx);
 
     ctx.save();
 
+    // Hiệu ứng rung khi startled
     let renderX = state.x;
     let renderY = state.y;
-
     if (state.isStartled) {
-      renderX += Math.sin(this.breathePhase * 25) * 3.5;
+      renderX += Math.sin(this.breathePhase * 22) * 3;
     }
 
     ctx.translate(renderX, renderY);
 
-    // Xác định frame sprite tương ứng từ bộ asset chính thức
-    const spriteKey = this.determineSpriteKey(state);
-    const spriteImg = this.spriteLoader.getSprite(spriteKey);
+    const img = this.animator.currentImage;
+    const meta = this.animator.currentMeta;
 
-    if (spriteImg && spriteImg.complete && spriteImg.naturalWidth > 0) {
-      this.renderSpriteFrame(ctx, spriteImg, state);
+    if (img) {
+      // Vẽ crossfade clip cũ trước (dưới lớp)
+      const prevImg = this.animator.crossfadeImage;
+      if (prevImg) {
+        ctx.save();
+        ctx.globalAlpha = this.animator.crossfadeAlpha;
+        this.drawSprite(ctx, prevImg, {}, state);
+        ctx.restore();
+      }
+
+      // Vẽ clip hiện tại
+      this.drawSprite(ctx, img, meta, state);
     } else {
-      // Fallback vẽ vector rig nếu ảnh đang tải
+      // Fallback rig vector
       const pose = state.customPose || this.computeDefaultPose(state);
       this.rig.render(ctx, pose, state.isStartled);
     }
@@ -88,117 +185,93 @@ export class GugugagaRenderer {
     ctx.restore();
   }
 
-  private renderSpriteFrame(
+  private drawSprite(
     ctx: CanvasRenderingContext2D,
     img: HTMLImageElement,
+    meta: FrameMeta,
     state: RenderState
   ): void {
     ctx.save();
 
-    // 1. Lật hướng trái/phải mượt mà
-    if (!state.isFacingRight) {
-      ctx.scale(-1, 1);
-    }
+    // 1. Flip hướng
+    const flipX = state.isFacingRight ? 1 : -1;
+    // meta.scaleX = -1 được dùng cho một số frame đặc biệt (dragged_fast)
+    const msx = meta.scaleX === -1 ? -flipX : flipX;
+    ctx.scale(msx, 1);
 
-    // 2. Góc nghiêng theo con lắc khi kéo thả
+    // 2. Pendulum tilt khi kéo
     if (state.isDragged && state.pendulumAngle) {
-      ctx.rotate(state.pendulumAngle);
+      ctx.rotate(state.pendulumAngle * (state.isFacingRight ? 1 : -1));
     }
 
-    // 3. Hiệu ứng nhịp thở nhẹ nhàng khi đứng yên
-    let scaleX = 1;
-    let scaleY = 1;
+    // 3. Squash-stretch từ meta
+    const baseScaleX = Math.abs(meta.scaleX ?? 1);
+    const baseScaleY = meta.scaleY ?? 1;
+
+    // 4. Nhịp thở cho IDLE / SLEEP
+    let breathX = 1;
+    let breathY = 1;
     if (state.stateName === "IDLE" && !state.isStartled) {
-      const b = Math.sin(this.breathePhase) * 0.025;
-      scaleX += b;
-      scaleY -= b;
+      const b = Math.sin(this.breathePhase) * 0.022;
+      breathX = 1 + b;
+      breathY = 1 - b;
     } else if (state.stateName === "SLEEP") {
-      const b = Math.sin(this.breathePhase * 0.6) * 0.03;
-      scaleX += b;
-      scaleY -= b;
+      const b = Math.sin(this.breathePhase * 0.55) * 0.028;
+      breathX = 1 + b;
+      breathY = 1 - b;
     }
 
-    ctx.scale(scaleX, scaleY);
+    ctx.scale(baseScaleX * breathX, baseScaleY * breathY);
 
-    // 4. Vẽ bóng đổ dưới chân
+    // 5. Shadow dưới chân
     if (state.isGrounded && !state.isDragged && state.stateName !== "SLEEP") {
       ctx.save();
-      ctx.fillStyle = "rgba(15, 23, 42, 0.22)";
+      ctx.fillStyle = "rgba(10, 20, 40, 0.2)";
       ctx.beginPath();
-      ctx.ellipse(0, 48, 38, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 48, 36, 8, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    // 5. Căn chỉnh kích thước và trọng tâm sprite
-    let targetW = 96;
-    let targetH = 100;
-    let offsetY = -50;
+    // 6. Kích thước render theo state
+    let targetW: number;
+    let targetH: number;
+    let offsetY: number = meta.offsetY ?? 0;
 
     if (state.stateName === "SLEEP") {
-      targetW = 125;
-      targetH = 88;
-      offsetY = -28;
-    } else if (state.chaseStage === "POUNCE" || state.chaseStage === "JUMP") {
-      targetW = 100;
-      targetH = 112;
-      offsetY = -60;
+      targetW = 130;
+      targetH = 90;
+      offsetY += -26;
+    } else if (state.chaseStage === "POUNCE") {
+      targetW = 110;
+      targetH = 120;
+      offsetY += -62;
     } else if (state.isStartled) {
-      targetW = 98;
-      targetH = 110;
-      offsetY = -58;
+      targetW = 100;
+      targetH = 115;
+      offsetY += -60;
+    } else if (state.stateName === "NOTIFY") {
+      targetW = 108;
+      targetH = 118;
+      offsetY += -62;
+    } else if (state.isDragged) {
+      targetW = 96;
+      targetH = 108;
+      offsetY += -52;
+    } else if (state.stateName === "WALK" || state.stateName === "CHASE_BUTTERFLY") {
+      targetW = 92;
+      targetH = 104;
+      offsetY += -52;
+    } else {
+      // IDLE / default
+      targetW = 96;
+      targetH = 106;
+      offsetY += -52;
     }
 
-    ctx.drawImage(img, -targetW / 2, offsetY, targetW, targetH);
+    ctx.drawImage(img, -targetW / 2 + (meta.offsetX ?? 0), offsetY, targetW, targetH);
 
     ctx.restore();
-  }
-
-  private determineSpriteKey(state: RenderState): SpriteKey {
-    // 1. Giật mình thót tim
-    if (state.isStartled) {
-      return "alert_startled";
-    }
-
-    // 2. Bị kéo thả chuột (Dragged)
-    if (state.isDragged) {
-      return state.isDraggedFast ? "dragged_dizzy" : "dragged_scared";
-    }
-
-    // 3. Đang ngủ
-    if (state.stateName === "SLEEP") {
-      return "sleep";
-    }
-
-    // 4. Thông báo mới (Notify)
-    if (state.stateName === "NOTIFY") {
-      return "alert_happy";
-    }
-
-    // 5. Rượt bắt bướm
-    if (state.stateName === "CHASE_BUTTERFLY") {
-      if (state.chaseStage === "ANTICIPATION") return "chase_crouch";
-      if (state.chaseStage === "SPRINT") return "chase_run";
-      if (state.chaseStage === "POUNCE") return "chase_jump";
-      if (state.chaseStage === "CELEBRATE") return "chase_celebrate";
-      return "chase_run";
-    }
-
-    // 6. Đi bộ tuần tra (Walk cycle 4 frame)
-    if (state.stateName === "WALK" && state.isGrounded) {
-      const frameIdx = Math.floor(this.walkCycle) % 4;
-      if (frameIdx === 0) return "walk_1";
-      if (frameIdx === 1) return "walk_2";
-      if (frameIdx === 2) return "walk_3";
-      return "walk_4";
-    }
-
-    // 7. Đứng chơi (Idle)
-    if (state.idleSubAction === "LOOK_AROUND" || state.idleSubAction === "BOUNCE") {
-      return "idle_wave";
-    }
-
-    return "turn_front";
   }
 
   private computeDefaultPose(state: RenderState): RigPose {
