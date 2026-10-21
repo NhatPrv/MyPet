@@ -8,34 +8,66 @@
 
 ## 🌟 Tính Năng Nổi Bật
 
-1. **Tạo Hình Chuẩn 100% Nhân Vật GuGuGaGa:**
-   - Bé gái chibi với mái tóc ngắn búp bê (`bob haircut`), kẹp tóc bạc kép, khuôn mặt bầu bĩnh màu da đào ửng hồng.
-   - Mũ trùm đầu chim cánh cụt nhung đen than, hai mắt chim cánh cụt tròn xoe và mỏ chim cánh cụt vàng cam nổi khối.
-   - Bụng chim cánh cụt trắng muốt in thương hiệu **"GuGuGaGa"** màu hồng dâu tươi tắn, hai cánh bơi mềm mại (`flipper wings`) và đôi chân vàng múp míp.
-   - Vòng cổ choker đen với khuyên tròn kim loại bạc lấp lánh.
+1. **Hoạt Hình Frame-by-Frame Thực Sự (SpriteAnimator @ 60 FPS):**
+   - Engine `SpriteAnimator` tự xây dựng: mỗi animation là một clip gồm nhiều frame PNG với timing riêng biệt (`duration` per frame).
+   - Hỗ trợ đầy đủ: `loop`, `once`, `pingpong` playmode.
+   - **Crossfade alpha-blend** mượt mà khi chuyển đổi giữa các animation (không giật/pop).
+   - Squash-and-stretch metadata per-frame cho cảm giác cartoon sinh động.
+   - Image Cache singleton — preload toàn bộ ảnh một lần, zero re-load khi runtime.
 
-2. **Động Cơ Hoạt Hình 2.5D & Vật Lý Lò Xo Đàn Hồi (Spring Damper @ 60 FPS):**
-   - Vòng lặp render chuẩn 60 FPS bằng `requestAnimationFrame` kết hợp bảo toàn thể tích (Volume Preservation `scaleX * scaleY ≈ 1.0`).
-   - Phép chiếu thị sai 2.5D (Parallax): Ngũ quan, mỏ, tóc và bụng trượt theo chiều sâu hình cầu khi quay trái, quay phải, chính diện mà không giật lật hình `scale(-1, 1)`.
-   - Cử động bước đi hoạt họa kinh điển 4 pha (`Contact -> Down -> Pass -> Up`) với nhịp lắc lư cánh cụt đáng yêu.
-   - Con ngươi mắt bám theo mục tiêu thời gian thực (`Eye Tracking` theo bướm hoặc con trỏ chuột) và chớp mắt tự nhiên với xác suất chớp mắt kép.
+2. **Bộ Animation Clips Phong Phú:**
+   - `idle` — nhịp thở + lắc nhẹ tự nhiên
+   - `idle_wave` — vẫy tay khi có sub-action (LOOK_AROUND, BOUNCE, SCRATCH)
+   - `sleep` — pingpong thở chậm rãi
+   - `dragged` / `dragged_fast` — biểu cảm sợ hãi/hoa mắt khi bị nhấc bổng
+   - `startled` — giật mình thót tim với squash-stretch shock
+   - `notify` — nhảy vui mừng khi nhận thông báo
+   - `chase_crouch` → `chase_run` → `chase_jump` → `chase_celebrate` — chuỗi 4 pha rượt bướm điện ảnh
 
-3. **Chuỗi Hoạt Cảnh Rượt Bắt Bướm Điện Ảnh (Cinematic Butterfly Chase):**
-   - **Pha 1 (Lấy đà & Lắc mông):** Gugugaga phát hiện bướm, mắt sáng hình ngôi sao lấp lánh, hạ thấp người nhún nảy lắc hông tinh nghịch chuẩn bị phóng.
-   - **Pha 2 (Phi nước đại):** Thân dốc về trước, cánh quạt như guồng quay, mắt bám theo độ cao của bướm.
-   - **Pha 3 (Nhảy vồ & Ăn mừng):** Nhảy vọt parabol trên không với hai cánh vươn dài chộp bướm, bướm tan thành chùm pháo hoa lấp lánh và Gugugaga thực hiện vũ điệu xoay tròn 360 độ ăn mừng!
+3. **Hành Vi Tự Động Khi Đứng Yên (Idle Sub-Actions):**
+   - Gugugaga tự phát ngẫu nhiên các hành động nhỏ khi đứng chờ: vẫy tay, nhảy nhẹ, gãi đầu, ngáp.
+   - Sau 90 giây không tương tác → tự động chuyển sang ngủ.
 
-4. **Kéo Thả Vật Lý Con Lắc & Xuyên Chuột Động (Dynamic Click-Through):**
-   - Cửa sổ trong suốt toàn màn hình: Click chuột xuyên qua vùng trống để làm việc bình thường, tự động bắt tương tác khi rê vào Gugugaga hoặc bong bóng thông báo.
-   - Tích hợp bộ giải nghiệm con lắc vật lý (`PendulumSolver`): Thân hình và chân tay đung đưa theo gia tốc rê chuột của người dùng; khi lắc chuột nhanh sẽ kích hoạt biểu cảm hoa mắt chóng mặt dễ thương.
+4. **Chuỗi Rượt Bắt Bướm Điện Ảnh:**
+   - **Pha 1 (ANTICIPATION):** Khom người chuẩn bị — `chase_crouch` animation với squash.
+   - **Pha 2 (SPRINT):** Phi nhanh theo bướm — `chase_run` 16fps.
+   - **Pha 3 (POUNCE):** Nhảy vồ parabol — `chase_jump` once.
+   - **Pha 4 (CELEBRATE):** Vũ điệu ăn mừng — `chase_celebrate` loop kèm sparkle particles.
 
-5. **Bộ Lắng Nghe Thông Báo Windows 11 & Phản Ứng Giật Mình:**
-   - Lắng nghe sự kiện thông báo hệ thống qua WinRT API (`UserNotificationListener`) hoặc IPC test notification.
-   - Khi có thông báo: Gugugaga giật mình thót tim nhảy lùi ra sau, thân hình rung chấn, hai tai dựng đứng rung bần bật, bắn hạt dấu chấm than `!` đỏ và giọt mồ hôi anime 💧.
-   - Sau đó quay mặt trực diện $0^\circ$ về phía người dùng, giơ hai cánh vẫy chào và hiển thị bong bóng thoại anime.
+5. **Kéo Thả Vật Lý Con Lắc (Pendulum Drag):**
+   - Cửa sổ trong suốt toàn màn hình — click xuyên qua vùng trống.
+   - Tự động bắt tương tác khi rê chuột vào Gugugaga.
+   - Thân hình nghiêng theo góc con lắc (pendulumAngle) khi kéo.
+   - Kéo nhanh → kích hoạt `dragged_fast` hoa mắt chóng mặt.
 
-6. **Khay Hệ Thống & Menu Ngữ Cảnh Chuột Phải:**
-   - Bấm chuột phải trực tiếp vào Gugugaga hoặc icon khay hệ thống để mở menu tùy chọn nhanh (Thả bướm, thử thông báo, cho ngủ, bật/tắt đo FPS,...).
+6. **Bộ Lắng Nghe Thông Báo Windows 11:**
+   - WinRT API `UserNotificationListener` — nhận thông báo hệ thống thời gian thực.
+   - Khi có thông báo: `startled` animation + particles dấu chấm than + bong bóng thoại.
+   - Sau giật mình: chuyển sang `notify` animation vẫy chào.
+
+7. **Khay Hệ Thống & Menu Ngữ Cảnh Chuột Phải:**
+   - Bấm chuột phải vào Gugugaga hoặc icon khay để mở menu tùy chọn.
+
+---
+
+## 🏗 Kiến Trúc Animation
+
+```
+src/animation/
+├── AnimationClip.ts        # Engine 1 clip: frame timing, loop/once/pingpong
+├── AnimationController.ts  # Quản lý nhiều clips, crossfade
+├── GugugagaAnimDefs.ts     # Định nghĩa 14 animation clips (frame paths + meta)
+├── SpriteAnimator.ts       # Runtime engine: ImageCache, state machine, crossfade render
+└── PoseAnimator.ts         # (Legacy) RigPose calculator — không còn dùng để render
+```
+
+**Luồng render:**
+```
+Gugugaga.update() → RenderState → GugugagaRenderer.update()
+  → selectAnimation(state) → SpriteAnimator.play(clipName)
+  → SpriteAnimator.update(dt) → currentImage + currentMeta
+  → GugugagaRenderer.render() → drawSprite() → ctx.drawImage()
+```
 
 ---
 
@@ -46,12 +78,12 @@
 npm install
 ```
 
-### Chạy ứng dụng chế độ phát triển (Development):
+### Chạy chế độ phát triển:
 ```bash
 npm run tauri dev
 ```
 
-### Đóng gói ứng dụng thành phẩm (Production Build):
+### Đóng gói thành phẩm:
 ```bash
 npm run tauri build
 ```
@@ -62,15 +94,43 @@ npm run tauri build
 
 | Thao tác | Mô tả |
 | :--- | :--- |
-| **Rê chuột vào Gugugaga** | Tự động bắt tương tác chuột. |
-| **Kéo thả chuột trái (Drag)** | Nhấc bổng Gugugaga đung đưa theo quán tính con lắc; buông tay để rơi tự do. |
-| **Nhấp đúp chuột trái** | Cưng nựng Gugugaga nhảy lên vui sướng kèm chùm sao lấp lánh. |
-| **Chuột phải vào Gugugaga** | Mở Menu ngữ cảnh tùy chọn phong cách Dark Glassmorphism. |
-| **Phím `F3`** | Bật / tắt bộ đo FPS và Frame-Time. |
-| **Phím `B`** | Thả bướm bay lượn để Gugugaga rượt bắt. |
-| **Phím `N`** | Bắn thông báo thử nghiệm để xem hoạt ảnh giật mình và bong bóng thoại. |
-| **Phím `S`** | Cho Gugugaga ngủ hoặc đánh thức. |
-| **Phím `R`** | Đặt lại vị trí Gugugaga về giữa màn hình. |
+| **Rê chuột vào Gugugaga** | Tự động bắt tương tác chuột (hitbox detection). |
+| **Kéo thả chuột trái** | Nhấc bổng Gugugaga đung đưa theo quán tính con lắc. |
+| **Chuột phải vào Gugugaga** | Mở Menu ngữ cảnh Dark Glassmorphism. |
+| **Phím `B`** | Thả bướm để Gugugaga rượt bắt. |
+| **Phím `N`** | Bắn thông báo thử nghiệm → xem hoạt ảnh giật mình. |
+| **Phím `S`** | Cho ngủ hoặc đánh thức Gugugaga. |
+| **Phím `R`** | Đặt lại vị trí về góc phải màn hình. |
+
+---
+
+## 📋 Changelog
+
+### v1.3.0 — 2026-10-21
+- **Xóa state WALK:** Gugugaga đứng yên tại chỗ — không còn tự di chuyển qua lại (đã bị lỗi nặng).
+- **Fix khuôn mặt biến dạng:** Loại bỏ hoàn toàn `GugugagaRig` vector fallback render; sprite PNG là nguồn render duy nhất.
+- **Fix NaN scale:** `meta.scaleX` undefined không còn gây `ctx.scale(NaN, 1)` làm vỡ canvas transform.
+- **Crossfade alpha-blend:** Clip cũ fade out đồng thời clip mới fade in — transition mượt mà thực sự.
+
+### v1.2.0 — 2026-10-21
+- **SpriteAnimator engine:** Frame-by-frame animation thực sự từ mảng PNG; thay thế cơ chế "chọn 1 ảnh theo state" cũ.
+- **14 animation clips:** Mỗi clip có frame timing chính xác + squash-stretch metadata per-frame.
+- **ImageCache singleton:** Preload toàn bộ assets khi khởi động, zero overhead lúc runtime.
+- **AnimationClip / AnimationController:** Các lớp tiện ích hỗ trợ loop, once, pingpong.
+
+### v1.1.0 — 2026-10-21
+- Tích hợp bộ sprite asset chính thức Gugugaga (20 PNG frames).
+- Kéo thả vật lý con lắc với `pendulumAngle`.
+- Phản ứng giật mình khi có thông báo mới.
+- Butterfly chase 4 giai đoạn điện ảnh.
+- Hành động idle tự động ngẫu nhiên.
+
+### v1.0.0 — 2026-10-20
+- Khởi tạo dự án Tauri v2 + Vite + TypeScript.
+- Cửa sổ trong suốt, luôn trên cùng, skipTaskbar.
+- WinRT notification listener.
+- System tray + context menu.
+- Lần đầu tiên Gugugaga xuất hiện trên màn hình.
 
 ---
 
