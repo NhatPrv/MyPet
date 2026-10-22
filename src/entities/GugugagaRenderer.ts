@@ -1,12 +1,14 @@
 /**
- * GugugagaRenderer.ts — v3.0
+ * GugugagaRenderer.ts — v3.1
  * Renderer sử dụng SpriteAnimator cho animation frame-by-frame thực sự.
  * Hỗ trợ: squash-stretch, crossfade, shadow, pendulum, particles.
+ * Đã loại bỏ vector rig fallback — sprite PNG là nguồn render duy nhất.
  */
 import { ParticleSystem } from "./Particle.ts";
-import { GugugagaRig, RigPose } from "./GugugagaRig.ts";
+import type { RigPose } from "./GugugagaRig.ts";
 import { SpriteAnimator } from "../animation/SpriteAnimator.ts";
 import { FrameMeta } from "../animation/GugugagaAnimDefs.ts";
+
 
 export type PetMood = "happy" | "sleepy" | "curious" | "excited" | "surprised" | "startled";
 export type IdleSubAction = "NONE" | "LOOK_AROUND" | "STRETCH" | "YAWN" | "BOUNCE" | "SCRATCH";
@@ -36,7 +38,6 @@ export class GugugagaRenderer {
   public width: number = 96;
   public height: number = 100;
 
-  public rig: GugugagaRig;
   public particles: ParticleSystem;
   public animator: SpriteAnimator;
 
@@ -44,11 +45,8 @@ export class GugugagaRenderer {
   private dustTimer: number = 0;
 
   constructor() {
-    this.rig = new GugugagaRig();
     this.particles = new ParticleSystem();
     this.animator = new SpriteAnimator();
-
-    // Bắt đầu với idle
     this.animator.play("idle");
   }
 
@@ -57,7 +55,6 @@ export class GugugagaRenderer {
   public update(dt: number, state: RenderState): void {
     this.breathePhase += dt * 3.5;
     this.particles.update(dt);
-    this.rig.update(dt);
 
     // Chọn animation clip phù hợp với state
     this.selectAnimation(state);
@@ -165,7 +162,7 @@ export class GugugagaRenderer {
     const meta = this.animator.currentMeta;
 
     if (img) {
-      // Vẽ crossfade clip cũ trước (dưới lớp)
+      // Vẽ crossfade clip cũ trước (alpha blend)
       const prevImg = this.animator.crossfadeImage;
       if (prevImg) {
         ctx.save();
@@ -173,13 +170,21 @@ export class GugugagaRenderer {
         this.drawSprite(ctx, prevImg, {}, state);
         ctx.restore();
       }
-
-      // Vẽ clip hiện tại
+      // Vẽ clip hiện tại (alpha = 1 - crossfadeAlpha để blend mượt)
+      ctx.save();
+      if (this.animator.crossfadeImage) {
+        ctx.globalAlpha = 1 - this.animator.crossfadeAlpha;
+      }
       this.drawSprite(ctx, img, meta, state);
+      ctx.restore();
     } else {
-      // Fallback rig vector
-      const pose = state.customPose || this.computeDefaultPose(state);
-      this.rig.render(ctx, pose, state.isStartled);
+      // Placeholder đơn giản khi ảnh đang tải — không vẽ rig vector
+      ctx.save();
+      ctx.fillStyle = "rgba(30, 30, 60, 0.4)";
+      ctx.beginPath();
+      ctx.ellipse(0, -30, 24, 30, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     ctx.restore();
@@ -193,20 +198,20 @@ export class GugugagaRenderer {
   ): void {
     ctx.save();
 
-    // 1. Flip hướng
+    // 1. Flip hướng trái/phải (TÁCH RIÊNG khỏi meta.scaleX)
     const flipX = state.isFacingRight ? 1 : -1;
-    // meta.scaleX = -1 được dùng cho một số frame đặc biệt (dragged_fast)
-    const msx = meta.scaleX === -1 ? -flipX : flipX;
-    ctx.scale(msx, 1);
+    ctx.scale(flipX, 1);
 
     // 2. Pendulum tilt khi kéo
     if (state.isDragged && state.pendulumAngle) {
-      ctx.rotate(state.pendulumAngle * (state.isFacingRight ? 1 : -1));
+      ctx.rotate(state.pendulumAngle);
     }
 
-    // 3. Squash-stretch từ meta
-    const baseScaleX = Math.abs(meta.scaleX ?? 1);
-    const baseScaleY = meta.scaleY ?? 1;
+    // 3. Squash-stretch từ meta (chỉ lấy magnitude, không dùng cho flip)
+    const metaScaleX = (meta.scaleX !== undefined && meta.scaleX !== -1)
+      ? Math.abs(meta.scaleX)
+      : 1.0;
+    const metaScaleY = meta.scaleY ?? 1.0;
 
     // 4. Nhịp thở cho IDLE / SLEEP
     let breathX = 1;
@@ -221,7 +226,8 @@ export class GugugagaRenderer {
       breathY = 1 - b;
     }
 
-    ctx.scale(baseScaleX * breathX, baseScaleY * breathY);
+    ctx.scale(metaScaleX * breathX, metaScaleY * breathY);
+
 
     // 5. Shadow dưới chân
     if (state.isGrounded && !state.isDragged && state.stateName !== "SLEEP") {
@@ -273,21 +279,5 @@ export class GugugagaRenderer {
 
     ctx.restore();
   }
-
-  private computeDefaultPose(state: RenderState): RigPose {
-    return {
-      bodyOffsetY: 0,
-      bodyRotation: state.pendulumAngle || 0,
-      headOffsetY: 0,
-      headRotation: 0,
-      leftArmAngle: 0.2,
-      rightArmAngle: -0.2,
-      leftLegAngle: 0,
-      rightLegAngle: 0,
-      leftLegOffsetY: 0,
-      rightLegOffsetY: 0,
-      scaleX: 1,
-      scaleY: 1,
-    };
-  }
 }
+
