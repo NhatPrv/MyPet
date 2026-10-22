@@ -1,6 +1,5 @@
 export type StateType =
   | "IDLE"
-  | "WALK"
   | "CHASE_BUTTERFLY"
   | "SLEEP"
   | "DRAGGED"
@@ -10,9 +9,7 @@ export type StateType =
 export interface StateContext {
   stateTimer: number;
   idleDuration: number;
-  walkDuration: number;
   inactivityTimer: number;
-  targetDirection: number; // 1: phải, -1: trái
 }
 
 export class StateMachine {
@@ -23,9 +20,7 @@ export class StateMachine {
     this.context = {
       stateTimer: 0,
       idleDuration: 3 + Math.random() * 3,
-      walkDuration: 4 + Math.random() * 3,
       inactivityTimer: 0,
-      targetDirection: 1,
     };
   }
 
@@ -35,10 +30,7 @@ export class StateMachine {
     this.context.stateTimer = 0;
 
     if (newState === "IDLE") {
-      this.context.idleDuration = 2.5 + Math.random() * 3.5;
-    } else if (newState === "WALK") {
-      this.context.walkDuration = 3.5 + Math.random() * 3.5;
-      this.context.targetDirection = Math.random() > 0.5 ? 1 : -1;
+      this.context.idleDuration = 3 + Math.random() * 4;
     }
   }
 

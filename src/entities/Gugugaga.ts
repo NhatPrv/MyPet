@@ -20,7 +20,6 @@ export class Gugugaga {
 
   // PHẠM VI DI CHUYỂN GIỚI HẠN NHỎ GỌN (Cozy Home Territory)
   public homeX: number;
-  public roamRadius: number = 130; // Bán kính tuần tra chỉ 130px (~260px tổng cự ly)
 
   // Dữ liệu con lắc vật lý khi kéo thả
   public pendulumAngle: number = 0;
@@ -51,7 +50,6 @@ export class Gugugaga {
 
   // Timers
   private zzzEmitTimer: number = 0;
-  private lastFacingDirection: number = 1;
 
   constructor() {
     this.groundY = window.innerHeight - 84;
@@ -175,50 +173,9 @@ export class Gugugaga {
           }
         }
 
-        if (ctx.stateTimer > ctx.idleDuration && this.idleSubAction === "NONE") {
-          this.stateMachine.setState("WALK");
-        }
+        // Idle kéo dài vô hạn — không tự chuyển sang WALK
         break;
 
-      case "WALK":
-        this.idleSubAction = "NONE";
-        const walkSpeed = 85 * ctx.targetDirection; // Tốc độ bước chậm rãi đáng yêu
-        this.velocity.x = walkSpeed;
-        this.isFacingRight = ctx.targetDirection > 0;
-
-        if (ctx.targetDirection !== this.lastFacingDirection) {
-          this.lastFacingDirection = ctx.targetDirection;
-          this.poseAnimator.triggerTurn();
-          this.renderer.particles.emitDust(this.position.x, this.position.y + 38);
-        }
-
-        if (butterfly && butterfly.isActive && !butterfly.isCaught) {
-          const dist = this.position.dist(butterfly.position);
-          if (dist < 320) {
-            this.stateMachine.setState("CHASE_BUTTERFLY");
-            this.chaseStage = "ANTICIPATION";
-            this.chaseStageTimer = 0.35;
-            this.mood = "excited";
-            break;
-          }
-        }
-
-        // GIỚI HẠN DI CHUYỂN TRONG PHẠM VI NHỎ QUANH homeX
-        const minX = Math.max(60, this.homeX - this.roamRadius);
-        const maxX = Math.min(window.innerWidth - 60, this.homeX + this.roamRadius);
-
-        if (this.position.x <= minX) {
-          this.position.x = minX;
-          ctx.targetDirection = 1;
-        } else if (this.position.x >= maxX) {
-          this.position.x = maxX;
-          ctx.targetDirection = -1;
-        }
-
-        if (ctx.stateTimer > ctx.walkDuration) {
-          this.stateMachine.setState("IDLE");
-        }
-        break;
 
       case "CHASE_BUTTERFLY":
         this.idleSubAction = "NONE";

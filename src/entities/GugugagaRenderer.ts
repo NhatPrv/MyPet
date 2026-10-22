@@ -60,7 +60,7 @@ export class GugugagaRenderer {
     this.selectAnimation(state);
 
     this.animator.update(dt);
-    if ((state.stateName === "WALK" || state.stateName === "CHASE_BUTTERFLY") && state.isGrounded) {
+    if (state.stateName === "CHASE_BUTTERFLY" && state.isGrounded) {
       this.dustTimer += dt;
       if (this.dustTimer > 0.18) {
         this.dustTimer = 0;
@@ -117,12 +117,6 @@ export class GugugagaRenderer {
       } else if (stage === "CELEBRATE") {
         this.animator.play("chase_celebrate", 0.1);
       }
-      return;
-    }
-
-    // Đi bộ tuần tra
-    if (s === "WALK") {
-      this.animator.play("walk", 0.08);
       return;
     }
 
@@ -264,7 +258,7 @@ export class GugugagaRenderer {
       targetW = 96;
       targetH = 108;
       offsetY += -52;
-    } else if (state.stateName === "WALK" || state.stateName === "CHASE_BUTTERFLY") {
+    } else if (state.stateName === "CHASE_BUTTERFLY") {
       targetW = 92;
       targetH = 104;
       offsetY += -52;
