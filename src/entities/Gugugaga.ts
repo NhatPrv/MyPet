@@ -79,8 +79,9 @@ export class Gugugaga {
     this.mood = "startled";
     this.idleSubAction = "NONE";
 
-    this.velocity.y = -360;
-    this.velocity.x = (this.isFacingRight ? -40 : 40);
+    // Chỉ nhảy thẳng lên, KHÔNG di chuyển ngang
+    this.velocity.y = -280;
+    this.velocity.x = 0;
     this.isGrounded = false;
 
     this.renderer.particles.emitExclamation(this.position.x, this.position.y - 30);
@@ -121,6 +122,10 @@ export class Gugugaga {
     switch (this.stateMachine.currentState) {
       case "IDLE":
         this.velocity.x = 0;
+        // Hard-lock vị trí X về homeX khi đứng trên sàn — KHÔNG bao giờ di chuyển ngang
+        if (this.isGrounded) {
+          this.position.x = this.homeX;
+        }
 
         if (butterfly && butterfly.isActive && !butterfly.isCaught) {
           const dist = this.position.dist(butterfly.position);
@@ -279,17 +284,27 @@ export class Gugugaga {
 
       case "NOTIFY":
         this.idleSubAction = "NONE";
+        this.velocity.x = 0; // Không di chuyển ngang
         if (this.isGrounded && ctx.stateTimer < 0.2) {
-          this.velocity.y = -350;
+          this.velocity.y = -300;
           this.isGrounded = false;
         }
         this.mood = "excited";
         break;
+
     }
 
     // 4. Tích phân vật lý vị trí
     if (!this.isDragged) {
-      this.position.x += this.velocity.x * dt;
+      const state = this.stateMachine.currentState;
+      // Chỉ cho phép di chuyển ngang khi chase bướm hoặc đang rơi
+      const canMoveX = state === "CHASE_BUTTERFLY" || state === "FALLING";
+
+      if (canMoveX) {
+        this.position.x += this.velocity.x * dt;
+      } else {
+        this.velocity.x = 0; // Reset velocity.x trong tất cả state khác
+      }
       this.position.y += this.velocity.y * dt;
 
       if (!this.isGrounded) {
@@ -305,7 +320,7 @@ export class Gugugaga {
           } else {
             this.velocity.y = 0;
             this.isGrounded = true;
-            if (this.stateMachine.currentState === "FALLING") {
+            if (state === "FALLING") {
               // Cập nhật vị trí thả mới làm homeX
               this.homeX = this.position.x;
               this.stateMachine.setState("IDLE");
@@ -317,13 +332,16 @@ export class Gugugaga {
         this.isGrounded = false;
       }
 
-      const screenPadding = 50;
-      if (this.position.x < screenPadding) {
-        this.position.x = screenPadding;
-        this.velocity.x = 0;
-      } else if (this.position.x > window.innerWidth - screenPadding) {
-        this.position.x = window.innerWidth - screenPadding;
-        this.velocity.x = 0;
+      // Giới hạn màn hình (chỉ khi chase/falling)
+      if (canMoveX) {
+        const screenPadding = 50;
+        if (this.position.x < screenPadding) {
+          this.position.x = screenPadding;
+          this.velocity.x = 0;
+        } else if (this.position.x > window.innerWidth - screenPadding) {
+          this.position.x = window.innerWidth - screenPadding;
+          this.velocity.x = 0;
+        }
       }
     }
 
